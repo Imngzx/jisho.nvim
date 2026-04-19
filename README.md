@@ -98,3 +98,5 @@ If you configured the keymaps as shown above:
 ## 🤝 Requirements
 - Neovim >= 0.10.0 (uses `vim.system`)
 - `curl` available in your system's PATH. * For older nvim version <0.12
+- [Budoux plugin](https://github.com/atusy/budoux.lua) 
+- [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) 
