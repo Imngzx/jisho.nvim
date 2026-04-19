@@ -16,9 +16,14 @@ function M.open_window(lines, title, config)
         wo = {
           wrap = true,
           conceallevel = 2,
-          number = false,
           cursorline = true,
-          relativenumber = false
+          number = false,
+          relativenumber = false,
+          signcolumn = "no",
+          statuscolumn = "",
+          foldcolumn = "0",
+          spell = false,
+          list = false,
         },
         keys = { q = 'close', ['<Esc>'] = 'close' }
       })
@@ -61,8 +66,13 @@ function M.open_window(lines, title, config)
   vim.wo[win].wrap = true
   vim.wo[win].conceallevel = 2
   vim.wo[win].cursorline = true
-  vim.wo[win].relativenumber = false
   vim.wo[win].number = false
+  vim.wo[win].relativenumber = false
+  vim.wo[win].signcolumn = "no"
+  vim.wo[win].statuscolumn = ""
+  vim.wo[win].foldcolumn = "0"
+  vim.wo[win].spell = false
+  vim.wo[win].list = false
 
   -- bind "quit" keymaps
   local close_cmd = function()
