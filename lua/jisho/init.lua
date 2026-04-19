@@ -29,7 +29,7 @@ function M.search(word)
 end
 
 vim.api.nvim_create_user_command('Jisho', function(opts)
-  require('custom.jisho').search(opts.args)
+  require("jisho.core").search(opts.args, M.config)
 end, { nargs = '?' })
 
 return M
