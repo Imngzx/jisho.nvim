@@ -1,7 +1,3 @@
-> [!WARNING]
-> this plugin in currently under development, please have patience
-
-
 # 辞書 jisho.nvim 🌸
 
 ----------
@@ -18,13 +14,13 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 - **Zero Dependencies:** Works out of the box. No external plugins required. (* optional snacks)
 - **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown syntax.
 - **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
-- **Vibe Coded:** Minimalist code, extreme performance.
+- **Vibe Coded:** Minimalist code, extreme performance, examined by author.
 
 ## 📦 Installation
 
 ### Method 1: Native `vim.pack` (No plugin manager needed)
 
-You can install this plugin using Neovim's built-in package manager. Just clone it into your `packpath`:
+You can install this plugin using Neovim's built-in package manager, or just clone it into your `packpath`:
 
 ```lua
 vim.pack.add('https://github.com/Imngzx/jisho.nvim')
