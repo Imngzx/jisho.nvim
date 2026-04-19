@@ -11,7 +11,7 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 ## ✨ Features
 
 - **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()`. Never blocks your UI.
-- **Zero Dependencies:** Works out of the box. No external plugins required. (* optional snacks)
+- **Zero Dependencies:** Works out of the box. No external plugins required. (* optional snacks and budoux.lua)
 - **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown syntax.
 - **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
 - **Vibe Coded:** Minimalist code, extreme performance, examined by author.
