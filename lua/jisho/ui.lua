@@ -15,8 +15,8 @@ function M.open_window(lines, title, config)
         bo = { filetype = 'markdown', buftype = 'nofile', swapfile = false },
         wo = {
           wrap = true,
-          linebreak = true,
           conceallevel = 2,
+          concealcursor = "ncv",
           cursorline = true,
           number = false,
           relativenumber = false,
@@ -30,6 +30,12 @@ function M.open_window(lines, title, config)
       })
       if win and win.buf and vim.api.nvim_buf_is_valid(win.buf) then
         vim.bo[win.buf].modifiable = false
+      end
+
+      if win and win.win and vim.api.nvim_win_is_valid(win.win) then
+        vim.api.nvim_win_call(win.win, function()
+          vim.fn.matchadd('Conceal', '\\%u200b', 10, -1, { conceal = '' })
+        end)
       end
       return
     end
@@ -64,8 +70,8 @@ function M.open_window(lines, title, config)
   vim.bo[buf].bufhidden = 'wipe'
 
   vim.wo[win].wrap = true
-  vim.wo[win].linebreak = true
   vim.wo[win].conceallevel = 2
+  vim.wo[win].concealcursor = "ncv"
   vim.wo[win].cursorline = true
   vim.wo[win].number = false
   vim.wo[win].relativenumber = false
@@ -81,6 +87,10 @@ function M.open_window(lines, title, config)
   end
   vim.keymap.set('n', 'q', close_cmd, { buf = buf, nowait = true, silent = true })
   vim.keymap.set('n', '<Esc>', close_cmd, { buf = buf, nowait = true, silent = true })
+
+  vim.api.nvim_win_call(win, function()
+    vim.fn.matchadd('Conceal', '\\%u200b', 10, -1, { conceal = '' })
+  end)
 end
 
 return M
