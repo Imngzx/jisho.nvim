@@ -15,6 +15,7 @@ function M.open_window(lines, title, config)
         bo = { filetype = 'markdown', buftype = 'nofile', swapfile = false },
         wo = {
           wrap = true,
+          linebreak = true,
           conceallevel = 2,
           cursorline = true,
           number = false,
@@ -38,11 +39,10 @@ function M.open_window(lines, title, config)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
-  local ui = vim.api.nvim_list_uis()[1]
-  local win_width = math.floor(ui.width * config.window.width)
-  local win_height = math.floor(ui.height * config.window.height)
-  local row = math.floor((ui.height - win_height) / 2)
-  local col = math.floor((ui.width - win_width) / 2)
+  local win_width = math.floor(vim.o.columns * config.window.width)
+  local win_height = math.floor(vim.o.lines * config.window.height)
+  local row = math.floor((vim.o.lines - win_height) / 2)
+  local col = math.floor((vim.o.columns - win_width) / 2)
 
   local win_opts = {
     relative = "editor",
@@ -64,6 +64,7 @@ function M.open_window(lines, title, config)
   vim.bo[buf].bufhidden = 'wipe'
 
   vim.wo[win].wrap = true
+  vim.wo[win].linebreak = true
   vim.wo[win].conceallevel = 2
   vim.wo[win].cursorline = true
   vim.wo[win].number = false
