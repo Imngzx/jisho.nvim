@@ -13,7 +13,13 @@ function M.open_window(lines, title, config)
         title = title,
         title_pos = 'center',
         bo = { filetype = 'markdown', buftype = 'nofile', swapfile = false },
-        wo = { wrap = true, conceallevel = 2, number = true, cursorline = true, relativenumber = true },
+        wo = {
+          wrap = true,
+          conceallevel = 2,
+          -- number = true,
+          cursorline = true,
+          -- relativenumber = true
+        },
         keys = { q = 'close', ['<Esc>'] = 'close' }
       })
       if win and win.buf and vim.api.nvim_buf_is_valid(win.buf) then
@@ -55,8 +61,8 @@ function M.open_window(lines, title, config)
   vim.wo[win].wrap = true
   vim.wo[win].conceallevel = 2
   vim.wo[win].cursorline = true
-  vim.wo[win].relativenumber = true
-  vim.wo[win].number = true
+  -- vim.wo[win].relativenumber = true
+  -- vim.wo[win].number = true
 
   -- bind "quit" keymaps
   local close_cmd = function()
