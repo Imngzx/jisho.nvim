@@ -4,16 +4,18 @@
 
 # 辞書 jisho.nvim 🌸
 
+----------
+
 A blazing fast, zero-dependency Japanese dictionary plugin for Neovim, powered by [Jisho.org](https://jisho.org). 
 
-Perfect for Japanese learners, anime enthusiasts, or anyone reading Japanese documentation and source code.
+Good for Japanese learners, anime enthusiasts, or anyone reading Japanese documentation and source code.
 
 ![Preview Image](https://via.placeholder.com/800x450.png?text=Put+Your+Screenshot+Here) <!-- 记得替换成你自己的截图 -->
 
 ## ✨ Features
 
 - **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()`. Never blocks your UI.
-- **Zero Dependencies:** Works out of the box. No external plugins required.
+- **Zero Dependencies:** Works out of the box. No external plugins required. (* optional snacks)
 - **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown syntax.
 - **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
 - **Vibe Coded:** Minimalist code, extreme performance.
@@ -24,10 +26,8 @@ Perfect for Japanese learners, anime enthusiasts, or anyone reading Japanese doc
 
 You can install this plugin using Neovim's built-in package manager. Just clone it into your `packpath`:
 
-```bash
-# Install as a start plugin (loads automatically)
-git clone https://github.com/YourUsername/jisho.nvim \
-  "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/pack/plugins/start/jisho.nvim"
+```lua
+vim.pack.add('https://github.com/YourUsername/jisho.nvim')
 ```
 
 Then, add the setup and keymaps to your `init.lua`:
@@ -90,6 +90,13 @@ You can search any word anywhere via the command line:
 ```vim
 :Jisho 食べる
 :Jisho hello
+```
+
+by adding this into plugin config:
+```lua
+  vim.api.nvim_create_user_command('Jisho', function(opts)
+    require('custom.jisho').search(opts.args)
+  end, { nargs = '?' })
 ```
 
 ### Keymaps
