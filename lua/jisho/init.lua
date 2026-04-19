@@ -22,10 +22,10 @@ M.config = {
 ---@param opts? JishoConfig
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+end
 
-  vim.api.nvim_create_user_command('Jisho', function(cmd_opts)
-    require('jisho.core').search(cmd_opts.args, M.config)
-  end, { nargs = '?' })
+function M.search(word)
+  require("jisho.core").search(word, M.config)
 end
 
 return M
