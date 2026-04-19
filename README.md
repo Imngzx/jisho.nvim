@@ -37,9 +37,10 @@ require('jisho').setup()
 -- Setup keymaps
 vim.keymap.set('n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' })
 vim.keymap.set('v', '<leader>tj', function()
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
+  local start_pos = vim.fn.getpos('v')
+  local end_pos = vim.fn.getpos('.')
   local lines = vim.fn.getregion(start_pos, end_pos)
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
   require('jisho').search(table.concat(lines, ' '))
 end, { desc = 'Jisho (Selection)' })
 ```
@@ -51,13 +52,14 @@ end, { desc = 'Jisho (Selection)' })
   "Imngzx/jisho.nvim",
   cmd = "Jisho",
   keys = {
-    { "<leader>tj", function() require("jisho").search() end, desc = "Jisho (Word under cursor)", mode = "n" },
-    { "<leader>tj", function()
-      local start_pos = vim.fn.getpos("'<")
-      local end_pos = vim.fn.getpos("'>")
+    { 'n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' } },
+    { 'v', '<leader>tj', function()
+      local start_pos = vim.fn.getpos('v')
+      local end_pos = vim.fn.getpos('.')
       local lines = vim.fn.getregion(start_pos, end_pos)
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
       require('jisho').search(table.concat(lines, ' '))
-    end, desc = "Jisho (Selection)", mode = "v" },
+    end, { desc = 'Jisho (Selection)' } },
   },
   opts = {} -- Calls setup() automatically
 }
@@ -90,13 +92,6 @@ You can search any word anywhere via the command line:
 ```vim
 :Jisho 食べる
 :Jisho hello
-```
-
-by adding this into plugin config:
-```lua
-  vim.api.nvim_create_user_command('Jisho', function(opts)
-    require('custom.jisho').search(opts.args)
-  end, { nargs = '?' })
 ```
 
 ### Keymaps
