@@ -6,7 +6,7 @@ A blazing fast, zero-dependency Japanese dictionary plugin for Neovim, powered b
 
 Good for Japanese learners, anime enthusiasts, or anyone reading Japanese documentation and source code.
 
-![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9) <!-- 记得替换成你自己的截图 -->
+![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9) 
 
 ## ✨ Features
 
@@ -71,6 +71,10 @@ require('jisho').setup({
   -- Set to false to force use native Neovim floating window.
   -- Set to true to force use snacks.nvim.
   use_snacks = pcall(require, 'snacks'),
+
+  -- Auto-detect budoux.lua by default.
+  -- can set to true or false
+  use_budoux = pcall(require, 'budoux'),
   
   -- Settings for the native floating window (used when snacks is not available)
   window = {
@@ -80,6 +84,9 @@ require('jisho').setup({
   },
 })
 ```
+
+> [!TIP]
+> You can add it into which-key
 
 ## 🚀 Usage
 
