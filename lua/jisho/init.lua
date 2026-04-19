@@ -5,6 +5,7 @@
 
 ---@class JishoConfig
 ---@field use_snacks? boolean
+---@field use_budoux? boolean
 ---@field window? JishoWindowConfig
 
 local M = {}
@@ -12,6 +13,7 @@ local M = {}
 ---@type JishoConfig
 M.config = {
   use_snacks = pcall(require, 'snacks'),
+  use_budoux = pcall(require, 'budoux'),
   window = {
     width = 0.6,
     height = 0.7,
