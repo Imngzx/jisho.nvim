@@ -1,7 +1,7 @@
 local M = {}
 
 function M.open_window(lines, title, config)
-  -- use snacks.win
+  -- Plan A: uses snacks win
   if config.use_snacks then
     local ok, snacks = pcall(require, 'snacks')
     if ok then
@@ -23,7 +23,7 @@ function M.open_window(lines, title, config)
     end
   end
 
-  -- 方案 B: use native win
+  -- Plan B: uses native win
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
