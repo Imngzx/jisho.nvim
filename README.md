@@ -27,7 +27,7 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 You can install this plugin using Neovim's built-in package manager. Just clone it into your `packpath`:
 
 ```lua
-vim.pack.add('https://github.com/YourUsername/jisho.nvim')
+vim.pack.add('https://github.com/Imngzx/jisho.nvim')
 ```
 
 Then, add the setup and keymaps to your `init.lua`:
@@ -48,7 +48,7 @@ end, { desc = 'Jisho (Selection)' })
 
 ```lua
 {
-  "YourUsername/jisho.nvim",
+  "Imngzx/jisho.nvim",
   cmd = "Jisho",
   keys = {
     { "<leader>tj", function() require("jisho").search() end, desc = "Jisho (Word under cursor)", mode = "n" },
