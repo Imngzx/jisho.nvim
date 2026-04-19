@@ -107,3 +107,7 @@ If you configured the keymaps as shown above:
 - `curl` available in your system's PATH. * For older nvim version <0.12
 - [Budoux plugin](https://github.com/atusy/budoux.lua) 
 - [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) 
+
+## License
+
+This project is licensed under the MIT License.
