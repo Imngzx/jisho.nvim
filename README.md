@@ -10,7 +10,7 @@ A blazing fast, zero-dependency Japanese dictionary plugin for Neovim, powered b
 
 Good for Japanese learners, anime enthusiasts, or anyone reading Japanese documentation and source code.
 
-![Preview Image](https://via.placeholder.com/800x450.png?text=Put+Your+Screenshot+Here) <!-- 记得替换成你自己的截图 -->
+![Preview Image](https://github.com/user-attachments/assets/b7b6841d-24cb-4b1d-8b0b-9232b22b1755) <!-- 记得替换成你自己的截图 -->
 
 ## ✨ Features
 
