@@ -84,6 +84,12 @@ function M.open_window(lines, title, config)
       if win and win.buf and vim.api.nvim_buf_is_valid(win.buf) then
         vim.bo[win.buf].modifiable = false
         setup_budoux_jumps(win.buf, config)
+
+        vim.api.nvim_exec_autocmds('User', {
+          pattern = 'JishoWindowOpened',
+          modeline = false,
+          data = { buf = win.buf, win = win.win }
+        })
       end
       return
     end
@@ -136,6 +142,12 @@ function M.open_window(lines, title, config)
   vim.keymap.set('n', '<Esc>', close_cmd, { buf = buf, nowait = true, silent = true })
 
   setup_budoux_jumps(buf, config)
+
+  vim.api.nvim_exec_autocmds('User', {
+    pattern = 'JishoWindowOpened',
+    modeline = false,
+    data = { buf = buf, win = win }
+  })
 end
 
 return M

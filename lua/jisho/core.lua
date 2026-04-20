@@ -1,5 +1,7 @@
 local M = {}
 
+local style = require('jisho.style')
+
 local function urlencode(str)
   if not str then return '' end
   str = str:gsub('\n', '\r\n')
@@ -55,6 +57,7 @@ function M.search(word, config)
       local jlpt = (item.jlpt and #item.jlpt > 0) and (' `' .. string.upper(item.jlpt[1]) .. '`') or ''
 
       table.insert(lines, '## ' .. word_jp .. reading .. is_common .. jlpt)
+      style.spacer(lines, config.layout)
 
       for j, sense in ipairs(item.senses) do
         local eng = table.concat(sense.english_definitions, ', ')
@@ -64,7 +67,9 @@ function M.search(word, config)
         end
         table.insert(lines, '- **' .. j .. '.** ' .. pos .. eng)
       end
+      style.spacer(lines, config.layout)
       table.insert(lines, '---')
+      style.spacer(lines, config.layout)
     end
 
     vim.schedule(function()
