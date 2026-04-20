@@ -12,11 +12,11 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 <details>
     <summary> Compact Layout </summary>
-    <img src = "https://github.com/user-attachments/assets/c5172265-c893-4643-84f6-ece5cb06883d">
+    <img src = "https://github.com/user-attachments/assets/07ba2319-a2e5-40a3-b5f9-377a0df84266">
 </details>
 <details>
     <summary> Spacious Layout </summary>
-    <img src = "https://github.com/user-attachments/assets/f16eb215-90c3-4413-b9a4-cf6fb35d401b">
+    <img src = "https://github.com/user-attachments/assets/e88c8697-03bf-4387-b4e7-0985bee07972">
 </details>
 <details>
     <summary> Super Spacious Layout </summary>
