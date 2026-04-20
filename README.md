@@ -8,6 +8,13 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9) 
 
+## Previews
+
+<details>
+    <summary> Compact Layout </summary>
+    <img src = "https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9">
+</details>
+
 ## ✨ Features
 
 - **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()`. Never blocks your UI.
@@ -82,6 +89,7 @@ require('jisho').setup({
     height = 0.7,     -- 70% of screen height
     border = "rounded", -- "single", "double", "rounded", "solid", "shadow"
   },
+
   -- compact | spacious | super_spacious
   layout = "spacious"
 })
