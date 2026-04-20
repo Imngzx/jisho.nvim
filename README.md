@@ -82,6 +82,8 @@ require('jisho').setup({
     height = 0.7,     -- 70% of screen height
     border = "rounded", -- "single", "double", "rounded", "solid", "shadow"
   },
+  -- compact | spacious | super_spacious
+  layout = "spacious"
 })
 ```
 
