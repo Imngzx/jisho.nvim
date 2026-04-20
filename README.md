@@ -106,6 +106,8 @@ require('jisho').setup({
 > [!TIP]
 > You can add it into which-key
 
+Here's my [jisho](github.com/Imngzx/nvim-config-rice-.ver-/blob/nvim-native/lua/plugins/jisho.lua) + [my budoux and which-key](https://github.com/Imngzx/nvim-config-rice-.ver-/blob/nvim-native/lua/plugins/jisho.lua) configuration file for Neovim
+
 ## 🚀 Usage
 
 ### Command Line
