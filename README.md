@@ -8,11 +8,19 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9) 
 
-## Previews
+## Layout Previews
 
 <details>
     <summary> Compact Layout </summary>
-    <img src = "https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9">
+    <img src = "https://github.com/user-attachments/assets/c5172265-c893-4643-84f6-ece5cb06883d">
+</details>
+<details>
+    <summary> Spacious Layout </summary>
+    <img src = "https://github.com/user-attachments/assets/f16eb215-90c3-4413-b9a4-cf6fb35d401b">
+</details>
+<details>
+    <summary> Super Spacious Layout </summary>
+    <img src = "https://github.com/user-attachments/assets/58e590ed-6efb-4416-ac0a-f6bddbde9b0e">
 </details>
 
 ## ✨ Features
