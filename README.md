@@ -25,7 +25,7 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ## ✨ Features
 
-- **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()`. Never blocks your UI.
+- **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()` + `vim.net.request()`. Never blocks your UI.
 - **Zero Dependencies:** Works out of the box. No external plugins required. (* optional snacks and budoux.lua)
 - **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown syntax.
 - **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
@@ -63,16 +63,26 @@ end, { desc = 'Jisho (Selection)' })
   "Imngzx/jisho.nvim",
   cmd = "Jisho",
   keys = {
-    { 'n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' } },
-    { 'v', '<leader>tj', function()
-      local start_pos = vim.fn.getpos('v')
-      local end_pos = vim.fn.getpos('.')
-      local lines = vim.fn.getregion(start_pos, end_pos)
-      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
-      require('jisho').search(table.concat(lines, ' '))
-    end, { desc = 'Jisho (Selection)' } },
+    {
+      '<leader>tj',
+      function() require('jisho').search() end,
+      mode = 'n',
+      desc = 'Jisho (Word under cursor)',
+    },
+    {
+      '<leader>tj',
+      function()
+        local start_pos = vim.fn.getpos('v')
+        local end_pos = vim.fn.getpos('.')
+        local lines = vim.fn.getregion(start_pos, end_pos)
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
+        require('jisho').search(table.concat(lines, ' '))
+      end,
+      mode = 'v',
+      desc = 'Jisho (Selection)',
+    },
   },
-  opts = {} -- Calls setup() automatically
+  opts = {},
 }
 ```
 
@@ -125,8 +135,9 @@ If you configured the keymaps as shown above:
 ## 🤝 Requirements
 - Neovim >= 0.10.0 (uses `vim.system`)
 - `curl` available in your system's PATH. * For older nvim version <0.12
-- [Budoux plugin](https://github.com/atusy/budoux.lua) 
-- [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) 
+- [Budoux plugin](https://github.com/atusy/budoux.lua) *optional
+- [snacks.nvim](https://github.com/folke/snacks.nvim) *author's suggestion 👍
+- [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) *author's suggestion 👍
 
 ## License
 
