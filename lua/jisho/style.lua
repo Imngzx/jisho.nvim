@@ -5,7 +5,7 @@ M.layouts = {
     table.insert(lines, '')
   end,
 
-  compact = function(lines)
+  compact = function()
   end,
 
   super_spacious = function(lines)
