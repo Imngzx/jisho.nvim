@@ -2,78 +2,104 @@ local M = {}
 
 local style = require('jisho.style')
 
+local string_format = string.format
+local string_byte = string.byte
+local string_gsub = string.gsub
+local string_upper = string.upper
+local table_concat = table.concat
+local math_min = math.min
+local tostring = tostring
+local pcall = pcall
+
+local vim_notify = vim.notify
+local vim_schedule = vim.schedule
+local vim_fn_expand = vim.fn.expand
+local vim_trim = vim.trim
+local vim_log_levels = vim.log.levels
+local vim_json_decode = vim.json.decode
+local vim_net_request = vim.net and vim.net.request
+local vim_system = vim.system
+
+local function hex_format(c)
+  return string_format('%%%02X', string_byte(c))
+end
+
 local function urlencode(str)
   if not str then return '' end
-  str = str:gsub('\n', '\r\n')
-  str = str:gsub('([^%w %-%_%.%~])', function(c)
-    return string.format('%%%02X', string.byte(c))
-  end)
-  str = str:gsub(' ', '+')
+  str = string_gsub(str, '\n', '\r\n')
+  str = string_gsub(str, '([^%w %-%_%.%~])', hex_format)
+  str = string_gsub(str, ' ', '+')
   return str
 end
 
 function M.search(word, config)
   if not word or word == '' then
-    word = vim.fn.expand('<cword>')
+    word = vim_fn_expand('<cword>')
   end
 
-  word = vim.trim(word):gsub('%s+', ' ')
+  word = string_gsub(vim_trim(word), '%s+', ' ')
 
   if not word or word == '' then
-    vim.notify('Please provide the Japanese word to query.', vim.log.levels.WARN)
+    vim_notify('Please provide the Japanese word to query.', vim_log_levels.WARN)
     return
   end
 
-  vim.notify('Searching: ' .. word, vim.log.levels.INFO, { title = 'Jisho.org', id = 'jisho_req' })
+  vim_notify('Searching: ' .. word, vim_log_levels.INFO, { title = 'Jisho.org', id = 'jisho_req' })
 
   local url = 'https://jisho.org/api/v1/search/words'
 
   local function process_response(err, json_str)
     if err or not json_str then
-      vim.schedule(function()
-        vim.notify('API request failed, please check internet connection\n' .. (err or ''),
-          vim.log.levels.ERROR, { title = 'Jisho.org' })
+      vim_schedule(function()
+        vim_notify('API request failed, please check internet connection\n' .. (err or ''),
+          vim_log_levels.ERROR, { title = 'Jisho.org' })
       end)
       return
     end
 
-    local ok, parsed = pcall(vim.json.decode, json_str)
+    local ok, parsed = pcall(vim_json_decode, json_str)
     if not ok or not parsed or not parsed.data or #parsed.data == 0 then
-      vim.schedule(function()
-        vim.notify('Word not found: ' .. word, vim.log.levels.WARN, { title = 'Jisho.org' })
+      vim_schedule(function()
+        vim_notify('Word not found: ' .. word, vim_log_levels.WARN, { title = 'Jisho.org' })
       end)
       return
     end
 
     local lines = {}
-    for i = 1, math.min(5, #parsed.data) do
-      local item = parsed.data[i]
+    local data = parsed.data
+    local len = math_min(5, #data)
+
+    for i = 1, len do
+      local item = data[i]
       local jp = item.japanese[1]
 
       local word_jp = jp.word or jp.reading or 'Unknown'
       local reading = (jp.word and jp.reading) and (' *( ' .. jp.reading .. ' )*') or ''
 
       local is_common = item.is_common and ' `⭐ Common`' or ''
-      local jlpt = (item.jlpt and #item.jlpt > 0) and (' `' .. string.upper(item.jlpt[1]) .. '`') or ''
+      local jlpt = (item.jlpt and #item.jlpt > 0) and (' `' .. string_upper(item.jlpt[1]) .. '`') or ''
 
-      table.insert(lines, '## ' .. word_jp .. reading .. is_common .. jlpt)
+      lines[#lines + 1] = '## ' .. word_jp .. reading .. is_common .. jlpt
       style.spacer(lines, config.layout)
 
-      for j, sense in ipairs(item.senses) do
-        local eng = table.concat(sense.english_definitions, ', ')
+      local senses = item.senses
+      for j = 1, #senses do
+        local sense = senses[j]
+        local eng = table_concat(sense.english_definitions, ', ')
         local pos = ''
         if sense.parts_of_speech and #sense.parts_of_speech > 0 then
-          pos = '`[' .. table.concat(sense.parts_of_speech, ', ') .. ']` '
+          pos = '`[' .. table_concat(sense.parts_of_speech, ', ') .. ']` '
         end
-        table.insert(lines, '- **' .. j .. '.** ' .. pos .. eng)
+        lines[#lines + 1] = '- **' .. j .. '.** ' .. pos .. eng
       end
+
       style.spacer(lines, config.layout)
-      table.insert(lines, '---')
+      lines[#lines + 1] = '---'
       style.spacer(lines, config.layout)
     end
 
-    vim.schedule(function()
-      vim.notify('Query successful', vim.log.levels.INFO,
+    vim_schedule(function()
+      vim_notify('Query successful', vim_log_levels.INFO,
         { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
 
       local title = ' 辞書 Jisho.org: ' .. word .. ' '
@@ -81,13 +107,13 @@ function M.search(word, config)
     end)
   end
 
-  if vim.net and vim.net.request then
+  if vim_net_request then
     local query_url = url .. '?keyword=' .. urlencode(word)
-    vim.net.request(query_url, {}, function(err, response)
+    vim_net_request(query_url, {}, function(err, response)
       if err then process_response(err, nil) else process_response(nil, response and response.body) end
     end)
   else
-    vim.system({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. word, url }, { text = true },
+    vim_system({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. word, url }, { text = true },
       function(obj)
         if obj.code ~= 0 or not obj.stdout then
           process_response('cURL Code: ' .. tostring(obj.code), nil)

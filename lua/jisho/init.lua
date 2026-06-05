@@ -11,6 +11,10 @@
 
 local M = {}
 
+local vim_tbl_deep_extend = vim.tbl_deep_extend
+local nvim_create_user_command = vim.api.nvim_create_user_command
+local pcall = pcall
+
 ---@type JishoConfig
 M.config = {
   use_snacks = pcall(require, 'snacks'),
@@ -25,14 +29,14 @@ M.config = {
 
 ---@param opts? JishoConfig
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend('force', M.config, opts or {})
+  M.config = vim_tbl_deep_extend('force', M.config, opts or {})
 end
 
 function M.search(word)
   require('jisho.core').search(word, M.config)
 end
 
-vim.api.nvim_create_user_command('Jisho', function(opts)
+nvim_create_user_command('Jisho', function(opts)
   require('jisho.core').search(opts.args, M.config)
 end, { nargs = '?' })
 

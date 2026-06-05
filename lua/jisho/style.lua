@@ -2,15 +2,16 @@ local M = {}
 
 M.layouts = {
   spacious = function(lines)
-    table.insert(lines, '')
+    lines[#lines + 1] = ''
   end,
 
   compact = function()
   end,
 
   super_spacious = function(lines)
-    table.insert(lines, '')
-    table.insert(lines, '')
+    local n = #lines
+    lines[n + 1] = ''
+    lines[n + 2] = ''
   end
 }
 
@@ -19,7 +20,7 @@ function M.spacer(lines, layout_name)
   if layout_fn then
     layout_fn(lines)
   else
-    M.layouts["spacious"](lines)
+    M.layouts.spacious(lines)
   end
 end
 
