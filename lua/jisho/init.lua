@@ -38,6 +38,6 @@ end
 
 nvim_create_user_command('Jisho', function(opts)
   require('jisho.core').search(opts.args, M.config)
-end, { nargs = '?' })
+end, { nargs = '*' })
 
 return M
