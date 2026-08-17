@@ -1,7 +1,5 @@
 local M = {}
 
-local cache = require('jisho.core.cache')
-
 local function build_lines(item, config)
   local lines = {}
   local jp_list = item.japanese or {}

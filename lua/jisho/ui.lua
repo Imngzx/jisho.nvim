@@ -68,7 +68,7 @@ local function setup_budoux_jumps(buf, config)
     local col = cursor[2] + 1
     local line = nvim_buf_get_lines(buf, row - 1, row, false)[1]
 
-    if not line or not string_find(line, "[\128-\255]") then
+    if not line or not string_find(line, '[\128-\255]') then
       vim_cmd('normal! ' .. dir)
       return
     end
@@ -98,8 +98,10 @@ local function setup_budoux_jumps(buf, config)
     end
   end
 
-  vim_keymap_set('n', 'w', function() jump('w') end, { buf = buf, silent = true, desc = "Budoux Word" })
-  vim_keymap_set('n', 'b', function() jump('b') end, { buf = buf, silent = true, desc = "Budoux Back" })
+  vim_keymap_set('n', 'w', function() jump('w') end,
+    { buf = buf, silent = true, desc = 'Budoux Word' })
+  vim_keymap_set('n', 'b', function() jump('b') end,
+    { buf = buf, silent = true, desc = 'Budoux Back' })
 end
 
 function M.open_window(lines, title, config)
@@ -133,8 +135,10 @@ function M.open_window(lines, title, config)
       nvim_win_set_cursor(win, { nav_targets[idx], 0 })
     end
 
-    vim_keymap_set('n', 'j', function() nav('j') end, { buf = buf, silent = true, desc = "Next sense/entry" })
-    vim_keymap_set('n', 'k', function() nav('k') end, { buf = buf, silent = true, desc = "Prev sense/entry" })
+    vim_keymap_set('n', 'j', function() nav('j') end,
+      { buf = buf, silent = true, desc = 'Next sense/entry' })
+    vim_keymap_set('n', 'k', function() nav('k') end,
+      { buf = buf, silent = true, desc = 'Prev sense/entry' })
   end
 
   -- Plan A: uses snacks win
@@ -155,9 +159,9 @@ function M.open_window(lines, title, config)
           cursorline = true,
           number = false,
           relativenumber = false,
-          signcolumn = "no",
-          statuscolumn = "",
-          foldcolumn = "0",
+          signcolumn = 'no',
+          statuscolumn = '',
+          foldcolumn = '0',
           spell = false,
           list = false,
         },
@@ -188,15 +192,15 @@ function M.open_window(lines, title, config)
   local col = math_floor((vim_o.columns - win_width) / 2)
 
   local win_opts = {
-    relative = "editor",
+    relative = 'editor',
     width = win_width,
     height = win_height,
     row = row,
     col = col,
     border = config.window.border,
     title = title,
-    title_pos = "center",
-    style = "minimal",
+    title_pos = 'center',
+    style = 'minimal',
     zindex = 50,
   }
 
@@ -211,9 +215,9 @@ function M.open_window(lines, title, config)
   vim_wo[win].cursorline = true
   vim_wo[win].number = false
   vim_wo[win].relativenumber = false
-  vim_wo[win].signcolumn = "no"
-  vim_wo[win].statuscolumn = ""
-  vim_wo[win].foldcolumn = "0"
+  vim_wo[win].signcolumn = 'no'
+  vim_wo[win].statuscolumn = ''
+  vim_wo[win].foldcolumn = '0'
   vim_wo[win].spell = false
   vim_wo[win].list = false
 

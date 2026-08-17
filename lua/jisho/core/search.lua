@@ -112,17 +112,24 @@ function M.search(word, config)
   if vim_net_request then
     local query_url = url .. '?keyword=' .. cache.urlencode(word)
     vim_net_request(query_url, {}, function(err, response)
-      process_response(word, config, cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, err, response and response.body)
+      process_response(word, config,
+        cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, err,
+        response and response.body)
     end)
   else
     vim_system({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. word, url }, { text = true },
       function(obj)
         if obj.code ~= 0 or not obj.stdout then
-          process_response(word, config, cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, 'cURL Code: ' .. tostring(obj.code), nil)
+          process_response(word, config,
+            cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks,
+            'cURL Code: ' .. tostring(obj.code), nil)
         else
-          process_response(word, config, cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, nil, obj.stdout)
+          process_response(word, config,
+            cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, nil, obj.stdout)
         end
       end)
   end
 end
+
 return M
+

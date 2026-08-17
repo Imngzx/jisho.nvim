@@ -1,14 +1,9 @@
 local M = {}
 
-local style = require('jisho.style')
 
 local string_format = string.format
 local string_byte = string.byte
 local string_gsub = string.gsub
-local string_upper = string.upper
-local table_concat = table.concat
-local math_min = math.min
-local tostring = tostring
 local pcall = pcall
 local os_time = os.time
 local uv = vim.uv
@@ -17,16 +12,9 @@ local vim_fs_normalize = vim.fs.normalize
 
 local vim_notify = vim.notify
 local vim_schedule = vim.schedule
-local vim_fn_expand = vim.fn.expand
-local vim_trim = vim.trim
 local vim_log_levels = vim.log.levels
 local vim_json_decode = vim.json.decode
 local vim_json_encode = vim.json.encode
-local vim_net_request = vim.net and vim.net.request
-local vim_system = vim.system
-local vim_api = vim.api
-local vim_bo = vim.bo
-local vim_wo = vim.wo
 
 -- Search cache: [normalized_word] = { lines = {...}, title = "...", timestamp = ..., word = "..." }
 local search_cache = {}
@@ -112,14 +100,16 @@ local function start_spinner(word)
   spinner_word = word
   spinner_frame_idx = 1
   local frame = spinner_frames[1]
-  vim_notify(frame .. ' Searching: ' .. word, vim_log_levels.INFO, { title = 'Jisho.org', id = spinner_notify_id })
+  vim_notify(frame .. ' Searching: ' .. word, vim_log_levels.INFO,
+    { title = 'Jisho.org', id = spinner_notify_id })
 
   spinner_timer = uv.new_timer()
   spinner_timer:start(0, 80, function()
     vim_schedule(function()
       spinner_frame_idx = (spinner_frame_idx % #spinner_frames) + 1
       frame = spinner_frames[spinner_frame_idx]
-      vim_notify(frame .. ' Searching: ' .. spinner_word, vim_log_levels.INFO, { title = 'Jisho.org', id = spinner_notify_id })
+      vim_notify(frame .. ' Searching: ' .. spinner_word, vim_log_levels.INFO,
+        { title = 'Jisho.org', id = spinner_notify_id })
     end)
   end)
 end
@@ -133,9 +123,11 @@ local function stop_spinner(success, word, err)
   spinner_word = nil
 
   if success then
-    vim_notify('✓ Query successful: ' .. word, vim_log_levels.INFO, { title = 'Jisho.org', id = spinner_notify_id, timeout = 10 })
+    vim_notify('✓ Query successful: ' .. word, vim_log_levels.INFO,
+      { title = 'Jisho.org', id = spinner_notify_id, timeout = 10 })
   else
-    vim_notify('✗ Search failed: ' .. word .. (err and (' - ' .. err) or ''), vim_log_levels.ERROR, { title = 'Jisho.org', id = spinner_notify_id })
+    vim_notify('✗ Search failed: ' .. word .. (err and (' - ' .. err) or ''), vim_log_levels.ERROR,
+      { title = 'Jisho.org', id = spinner_notify_id })
   end
 end
 
