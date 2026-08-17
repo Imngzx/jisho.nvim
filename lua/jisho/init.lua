@@ -41,6 +41,10 @@ function M.history()
   require('jisho.core').history()
 end
 
+local dedupe = require('jisho.core.dedupe')
+
+dedupe.setup_commands()
+
 nvim_create_user_command('Jisho', function(opts)
   require('jisho.core').search(opts.args, M.config)
 end, { nargs = '*' })
@@ -48,5 +52,24 @@ end, { nargs = '*' })
 nvim_create_user_command('JishoHistory', function()
   require('jisho.core').history()
 end, {})
+
+nvim_create_user_command('JishoDedupe', function(opts)
+  local subcmd = opts.args
+  if subcmd == 'inflight' then
+    dedupe.inspect_inflight()
+  elseif subcmd == 'clear-inflight' then
+    dedupe.clear_inflight()
+  elseif subcmd == 'clear-cache' then
+    dedupe.clear_cache()
+  elseif subcmd == 'refresh' then
+    dedupe.refresh(opts.fargs[1], M.config)
+  else
+    vim.notify('Usage: JishoDedupe [inflight|clear-inflight|clear-cache|refresh <word>]', vim.log.levels.INFO, { title = 'Jisho Dedupe' })
+  end
+end, { nargs = '*', complete = function() return { 'inflight', 'clear-inflight', 'clear-cache', 'refresh' } end })
+
+nvim_create_user_command('JishoRefresh', function(opts)
+  dedupe.refresh(opts.args, M.config)
+end, { nargs = '?' })
 
 return M
