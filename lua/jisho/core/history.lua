@@ -9,7 +9,7 @@ local vim_schedule = vim.schedule
 
 function M.history(config)
   config = config or cache.config
-  if #cache.search_history == 0 then
+  if #cache.hist == 0 then
     vim.notify('No search history', vim.log.levels.INFO, { title = 'Jisho.org' })
     return
   end
@@ -19,7 +19,7 @@ function M.history(config)
     local ok, snacks = pcall(require, 'snacks')
     if ok and snacks.picker then
       local items = {}
-      for i, entry in ipairs(cache.search_history) do
+      for i, entry in ipairs(cache.hist) do
         local time_str = os_date('%Y-%m-%d %H:%M', entry.timestamp)
         items[#items + 1] = {
           text = string_format('%d. %s (%s)', i, entry.word, time_str),
@@ -51,7 +51,7 @@ function M.history(config)
 
   -- Fallback: native window
   local lines = { '# Search History', '' }
-  for i, entry in ipairs(cache.search_history) do
+  for i, entry in ipairs(cache.hist) do
     local time_str = os_date('%Y-%m-%d %H:%M', entry.timestamp)
     lines[#lines + 1] = string_format('%d. **%s** *(%s)*', i, entry.word, time_str)
   end

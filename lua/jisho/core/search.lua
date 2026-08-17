@@ -1,132 +1,101 @@
 local M = {}
 
-local cache = require('jisho.core.cache')
-local response = require('jisho.core.response')
+local c = require('jisho.core.cache')
+local r = require('jisho.core.response')
 
-local vim_schedule = vim.schedule
-local vim_json_decode = vim.json.decode
-local vim_net_request = vim.net and vim.net.request
-local vim_system = vim.system
-local os_time = os.time
+local vsched = vim.schedule
+local vjson_dec = vim.json.decode
+local vnet_req = vim.net and vim.net.request
+local vsys = vim.system
+local otime = os.time
+local math_min = math.min
+local sgsub = string.gsub
+local strim = vim.trim
+local vexpand = vim.fn.expand
+local vnotif = vim.notify
+local vlog = vim.log.levels
 
-local function process_response(word, config, callbacks, err, json_str)
-  -- Clean up in-flight
-  cache.in_flight[word] = nil
-  if err or not json_str then
-    vim.iter(callbacks):each(function(cb)
-      vim_schedule(function() cb(nil, err or 'Empty response') end)
-    end)
-    cache.stop_spinner(false, word, err)
+local function proc_resp(w, cfg, cbs, err, js)
+  c.in_flight[w] = nil
+  if err or not js then
+    for i = 1, #cbs do
+      vsched(function() cbs[i](nil, err or 'Empty response') end)
+    end
+    c.stop_spin(false, w, err)
     return
   end
-
-  local ok, parsed = pcall(vim_json_decode, json_str)
-  if not ok or not parsed or not parsed.data or #parsed.data == 0 then
-    vim.iter(callbacks):each(function(cb)
-      vim_schedule(function() cb(nil, 'Word not found') end)
-    end)
-    cache.stop_spinner(false, word, 'Word not found')
+  local ok, p = pcall(vjson_dec, js)
+  if not ok or not p or not p.data or #p.data == 0 then
+    for i = 1, #cbs do
+      vsched(function() cbs[i](nil, 'Word not found') end)
+    end
+    c.stop_spin(false, w, 'Word not found')
     return
   end
-
-  local all_lines = {}
-  local data = parsed.data
-  local len = math.min(5, #data)
-
+  local lines = {}
+  local data = p.data
+  local len = math_min(5, #data)
   for i = 1, len do
     local item = data[i]
-    local item_lines = response.build_lines(item, config)
-    vim.iter(item_lines):each(function(line)
-      all_lines[#all_lines + 1] = line
-    end)
-    require('jisho.style').spacer(all_lines, config.layout)
-    all_lines[#all_lines + 1] = '---'
-    require('jisho.style').spacer(all_lines, config.layout)
+    local il = r.build_lines(item, cfg)
+    for j = 1, #il do
+      lines[#lines + 1] = il[j]
+    end
+    r.spacer(lines, cfg.layout)
+    lines[#lines + 1] = '---'
+    r.spacer(lines, cfg.layout)
   end
-  local title = ' 辞書 Jisho.org: ' .. word .. ' '
-  local timestamp = os_time()
-
-  -- Cache the result
-  cache.search_cache[word] = {
-    lines = all_lines,
-    title = title,
-    timestamp = timestamp,
-    word = word
-  }
-  cache.add_to_history(word, timestamp)
-  cache.save_cache()
-  vim.iter(callbacks):each(function(cb)
-    vim_schedule(function() cb(all_lines, title, word) end)
-  end)
-
-  cache.stop_spinner(true, word)
+  local title = ' 辞書 Jisho.org: ' .. w .. ' '
+  local ts = otime()
+  c.search_cache[w] = { lines = lines, title = title, timestamp = ts, word = w }
+  c.add_hist(w, ts)
+  c.save_cache()
+  for i = 1, #cbs do
+    vsched(function() cbs[i](lines, title, w) end)
+  end
+  c.stop_spin(true, w)
 end
 
-function M.search(word, config)
-  if not word or word == '' then
-    word = vim.fn.expand('<cword>')
+function M.search(w, cfg)
+  if not w or w == '' then
+    w = vexpand('<cword>')
   end
-
-  word = string.gsub(vim.trim(word), '%s+', ' ')
-
-  if not word or word == '' then
-    vim.notify('Please provide the Japanese word to query.', vim.log.levels.WARN)
+  w = sgsub(strim(w), '%s+', ' ')
+  if not w or w == '' then
+    vnotif('Please provide the Japanese word to query.', vlog.WARN)
     return
   end
-
-  -- Check cache
-  local cached = cache.search_cache[word]
-  local now = os_time()
-  if cached and (now - cached.timestamp) < cache.CACHE_TTL then
-    vim_schedule(function()
-      vim.notify('✓ Query successful (cached): ' .. word, vim.log.levels.INFO,
-        { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
-      require('jisho.ui').open_window(cached.lines, cached.title, config)
+  local cached = c.search_cache[w]
+  local now = otime()
+  if cached and (now - cached.timestamp) < c.CACHE_TTL then
+    vsched(function()
+      vnotif('✓ Query successful (cached): ' .. w, vlog.INFO, { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
+      require('jisho.ui').open_window(cached.lines, cached.title, cfg)
     end)
-    cache.add_to_history(word, now)
+    c.add_hist(w, now)
     return
   end
-
-  -- Request deduplication
-  local callbacks = { function(lines, title, _)
-    if lines then
-      require('jisho.ui').open_window(lines, title, config)
-    end
-  end }
-
-  if cache.in_flight[word] then
-    table.insert(cache.in_flight[word].callbacks, callbacks[1])
+  local cbs = { function(l, t) if l then require('jisho.ui').open_window(l, t, cfg) end end }
+  if c.in_flight[w] then
+    c.in_flight[w].callbacks[#c.in_flight[w].callbacks + 1] = cbs[1]
     return
   end
-
+  c.in_flight[w] = { callbacks = cbs }
+  c.start_spin(w)
   local url = 'https://jisho.org/api/v1/search/words'
-
-  cache.start_spinner(word)
-
-  if vim_net_request then
-    local query_url = url .. '?keyword=' .. cache.urlencode(word)
-    vim_net_request(query_url, {
-      retry = 3,
-      verbose = false,
-    }, function(err, response)
-      process_response(word, config,
-        cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, err,
-        response and response.body)
+  if vnet_req then
+    vnet_req(url .. '?keyword=' .. c.urlencode(w), { retry = 3, verbose = false }, function(err, res)
+      proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, err, res and res.body)
     end)
   else
-    vim_system({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. word, url }, { text = true },
-      function(obj)
-        if obj.code ~= 0 or not obj.stdout then
-          process_response(word, config,
-            cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks,
-            'cURL Code: ' .. tostring(obj.code), nil)
-        else
-          process_response(word, config,
-            cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, nil, obj.stdout)
-        end
-      end)
+    vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true }, function(obj)
+      if obj.code ~= 0 or not obj.stdout then
+        proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, 'cURL Code: ' .. tostring(obj.code), nil)
+      else
+        proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, nil, obj.stdout)
+      end
+    end)
   end
 end
 
 return M
-

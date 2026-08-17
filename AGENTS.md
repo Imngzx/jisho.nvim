@@ -2,7 +2,7 @@
 
 > **Purpose**: Step-by-step reference for AI assistants working on this codebase.  
 > **Audience**: Any AI agent (Cursor, Claude, Copilot, etc.) editing `jisho.nvim`.  
-> **Last Updated**: 2026-08-17
+> **Last Updated**: 2026-08-18
 
 ---
 
@@ -12,7 +12,9 @@
 |--------|--------|
 | **Type** | Neovim plugin — async Japanese dictionary lookup via Jisho.org API |
 | **Entry Point** | `lua/jisho/init.lua` → `require('jisho').setup()` |
-| **Core Modules** | `core.lua` (search/API), `ui.lua` (window rendering), `style.lua` (layouts) |
+| **Core Modules** | `core/` directory: `cache.lua`, `search.lua`, `response.lua`, `dedupe.lua`, `history.lua`, `init.lua` |
+| **UI Module** | `ui.lua` (window rendering, navigation, Budoux) |
+| **Style Module** | `style.lua` (layouts) |
 | **Install Location** | `vim.pack.add('https://github.com/Imngzx/jisho.nvim')` |
 | **Config Style** | Single `setup(opts)` with optional `use_snacks`, `use_budoux`, `layout`, `window` |
 | **Requirements** | Neovim >= 0.10 (uses `vim.system`, `vim.net.request`), `curl` fallback |
@@ -44,8 +46,10 @@ nvim --headless -c "luafile lua/jisho/init.lua" -c "lua require('jisho').setup()
 nvim --headless -c "lua local t=vim.uv.hrtime(); require('jisho.core').search('test', {}); vim.wait(2000); print('core:', (vim.uv.hrtime()-t)/1e6, 'ms')" -c "qall"
 
 # LSP diagnostics
-lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/core.lua
+lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/core
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/ui.lua
+lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/init.lua
+lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/style.lua
 ```
 
 ---
@@ -56,35 +60,40 @@ lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/u
 
 | File | Responsibility |
 |------|----------------|
-| `lua/jisho/init.lua` | Public API: `setup()`, `search()`, `history()`, user commands `Jisho`, `JishoHistory` |
-| `lua/jisho/core.lua` | Search logic: URL encoding, HTTP request, response parsing, line generation, caching, history, deduplication |
+| `lua/jisho/init.lua` | Public API: `setup()`, `search()`, `history()`, user commands `Jisho`, `JishoHistory`, `JishoDedupe`, `JishoRefresh` |
+| `lua/jisho/core/init.lua` | Core module exports: `setup`, `search`, `history`, `build_lines` |
+| `lua/jisho/core/cache.lua` | All shared state: cache, history, spinner, URL encoding, dedupe, in-flight tracking |
+| `lua/jisho/core/search.lua` | Search logic: HTTP requests, cache checking, spinner, deduplication |
+| `lua/jisho/core/response.lua` | `build_lines()` + `spacer()` - result formatting from Jisho API |
+| `lua/jisho/core/history.lua` | `:JishoHistory` command (snacks.picker + native fallback) |
+| `lua/jisho/core/dedupe.lua` | Cache key memoization, in-flight inspection, force refresh |
 | `lua/jisho/ui.lua` | Window creation: snacks.nvim integration, native fallback, Budoux jumps, j/k navigation |
 | `lua/jisho/style.lua` | Layout functions: `spacious`, `compact`, `super_spacious` spacing |
 
-### Search Flow (`core.lua`)
+### Search Flow (`core/search.lua`)
 
 ```lua
 M.search(word, config)
   → word = word or <cword>
-  → word = trim + collapse whitespace
+  → word = trim + collapse whitespace (localized strim/sgsub)
   → Check in-memory cache (5min TTL)
   → Check in-flight deduplication
   → Start spinner (vim.notify with Braille animation)
   → HTTP request:
-      vim.net.request (Neovim 0.10+)  -- native, async
+      vim.net.request (Neovim 0.10+)  -- native, async, retry=3
       OR vim.system('curl') fallback -- subprocess
   → process_response(err, json_str)
     → pcall(vim_json_decode)
-    → build lines[] table (max 5 results)
+    → build lines[] table (max 5 results) via response.build_lines()
       → word + reading + common + jlpt
       → Other forms (multiple japanese[] entries)
       → Tags (item.tags)
       → Senses: english_definitions + parts_of_speech
       → Sense info (usage notes), see_also, sense tags
-      → style.spacer(layout) between entries
-    → Cache result + add to history
+      → spacer(layout) between entries
+    → Cache result + add to history (localized add_hist)
     → Persist cache to disk (~/.cache/nvim/jisho_cache.json)
-    → Stop spinner, show success/error
+    → Stop spinner, show success/error (wrapped in vim_schedule)
     → vim_schedule(open_window)
 ```
 
@@ -107,28 +116,222 @@ M.open_window(lines, title, config)
   → Both: fire User JishoWindowOpened autocmd
 ```
 
-### Budoux Word Jumps (`ui.lua:29-103`)
+### Budoux Word Jumps (`ui.lua`)
 
 - Caches parser: `M._budoux_parser = budoux.load_japanese_model()` (once)
 - Per-buffer boundary cache: `budoux_cache[buf][line_num] = { boundaries={}, text="" }`
 - Auto-invalidated on buffer changes via `nvim_buf_attach`
 - On `w`/`b` keypress: uses cached boundaries, falls back to `normal! w/b`
 
-### Navigation (`ui.lua:105-138`)
+### Navigation (`ui.lua`)
 
 - `j`/`k` keys jump between sense/entry headers (`## ` and `- **N.**`)
 - Works in both snacks and native windows
 
 ---
 
-## 4. Development Workflow
+## 4. LuaJIT Low-Level Code Style (MANDATORY)
+
+### Core Principles
+
+1. **No wrapper functions** — call C APIs directly, avoid indirection
+2. **Localize EVERYTHING at module top** — all `vim.*`, `string.*`, `table.*`, `math.*`, `os.*`, `io.*`, `pcall`
+3. **Use numeric `for` loops** — `for i = 1, #t do` NOT `ipairs()` or `pairs()` or `vim.iter()`
+4. **Manual index tracking** — use `li = #lines + 1` / `lines[li] = ...; li = li + 1` instead of `#lines + 1`
+5. **Pre-compute lookup tables** — 256-char URL encode map, kana normalization table
+6. **Memoization** — cache expensive computations (`get_key()` with `_key_memo`)
+7. **Short variable names** — `sfmt`, `sbyte`, `sgsub`, `vnotif`, `vsched`, `vlog` (standard in this codebase)
+8. **Inline hot functions** — `spacer()` inlined in `response.lua`
+8. **Avoid table constructors in loops** — reuse tables, pre-allocate when possible
+9. **Early returns** — reduce nesting depth
+10. **Direct module requires** — `local c = require('jisho.core.cache')` not lazy loading in hot paths
+
+### Required Localization Pattern (at top of EVERY module)
+
+```lua
+-- Standard library
+local sfmt = string.format
+local sbyte = string.byte
+local sgsub = string.gsub
+local slower = string.lower
+local ssub = string.sub
+local schar = string.char
+local sconcat = table.concat
+local math_min = math.min
+local mfloor = math.floor
+local otime = os.time
+local pcall = pcall
+local iopen = io.open
+
+-- Neovim C APIs (vim.*)
+local uv = vim.uv
+local vfn = vim.fn
+local vfsn = vim.fs.normalize
+local vnotif = vim.notify
+local vsched = vim.schedule
+local vlog = vim.log.levels
+local vjson_dec = vim.json.decode
+local vjson_enc = vim.json.encode
+local vnet_req = vim.net and vim.net.request
+local vsys = vim.system
+local vexpand = vim.fn.expand
+local strim = vim.trim
+local sfind = string.find
+local srequire = require
+
+-- vim.api (localize individually)
+local vapi = vim.api
+local nwin_gc = vapi.nvim_win_get_cursor
+local nbuf_gl = vapi.nvim_buf_get_lines
+local nwin_sc = vapi.nvim_win_set_cursor
+local nbuf_cr = vapi.nvim_create_buf
+local nbuf_sl = vapi.nvim_buf_set_lines
+local nwin_op = vapi.nvim_open_win
+local nbuf_iv = vapi.nvim_buf_is_valid
+local nwin_iv = vapi.nvim_win_is_valid
+local nwin_cl = vapi.nvim_win_close
+local napi_ea = vapi.nvim_exec_autocmds
+local nbuf_at = vapi.nvim_buf_attach
+
+-- vim.* options (modern Neovim 0.13+)
+local vo = vim.o
+local vbo = vim.bo
+local vwo = vim.wo
+local vkmap = vim.keymap.set
+local vcmd = vim.cmd
+```
+
+### Loop Patterns (Use These)
+
+```lua
+-- ✅ GOOD: Numeric for loop
+for i = 1, #data do
+  local item = data[i]
+  -- ...
+end
+
+-- ✅ GOOD: Reverse numeric loop
+for i = #targs, 1, -1 do
+  local b = targs[i]
+  -- ...
+end
+
+-- ✅ GOOD: Manual index for line building
+local lines = {}
+local li = 1
+lines[li] = sfmt('## %s', w)
+li = li + 1
+
+-- ❌ BAD: ipairs/pairs in hot paths
+for i, v in ipairs(t) do ... end
+
+-- ❌ BAD: vim.iter in hot paths
+vim.iter(t):each(function(v) ... end)
+
+-- ❌ BAD: #lines + 1 in tight loops
+lines[#lines + 1] = x
+```
+
+### Memoization Pattern
+
+```lua
+local _memo = {}
+
+local function get_key(w)
+  local m = _memo[w]
+  if m then return m end
+  -- compute...
+  _memo[w] = result
+  return result
+end
+
+local function clear_memo()
+  _memo = {}
+end
+```
+
+### Pre-computed Lookup Tables
+
+```lua
+local _url_map = {}
+for i = 0, 255 do
+  local c = schar(i)
+  if c:match('[%w%-_%.~]') then
+    _url_map[i] = c
+  elseif c == ' ' then
+    _url_map[i] = '+'
+  elseif c == '\n' then
+    _url_map[i] = '%0D%0A'
+  else
+    _url_map[i] = sfmt('%%%02X', i)
+  end
+end
+
+local function urlencode(str)
+  if not str then return '' end
+  return sgsub(str, '.', function(c)
+    return _url_map[sbyte(c)]
+  end)
+end
+```
+
+### Spinner Timer (LuaJIT-friendly)
+
+```lua
+spin_idx = (spin_idx % 10) + 1  -- hardcoded #spin_frames = 10
+local frame = spin_frames[spin_idx]
+```
+
+### Modern Neovim APIs (Neovim 0.13+)
+
+```lua
+-- ✅ GOOD: Direct vim.bo/vim.wo
+vbo[buf].filetype = 'markdown'
+vbo[buf].modifiable = false
+vwo[win].wrap = true
+vwo[win].conceallevel = 2
+
+-- ❌ BAD: Deprecated
+vim.api.nvim_buf_set_option(buf, 'filetype', 'markdown')
+vim.api.nvim_win_set_option(win, 'wrap', true)
+```
+
+### HTTP with Retries
+
+```lua
+if vnet_req then
+  vnet_req(url .. '?keyword=' .. c.urlencode(w), 
+    { retry = 3, verbose = false }, 
+    function(err, res) ... end)
+else
+  vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true }, callback)
+end
+```
+
+### Async Notifications (Avoid Fast-Event-Context Errors)
+
+```lua
+-- ✅ ALWAYS wrap vim.notify in vim_schedule
+vsched(function()
+  vnotif('✓ Query successful: ' .. w, vlog.INFO, { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
+end)
+```
+
+---
+
+## 5. Development Workflow
 
 ### Step 1: Read & Understand
 
 ```bash
 # Read core modules
 read lua/jisho/init.lua
-read lua/jisho/core.lua
+read lua/jisho/core/init.lua
+read lua/jisho/core/cache.lua
+read lua/jisho/core/search.lua
+read lua/jisho/core/response.lua
+read lua/jisho/core/history.lua
+read lua/jisho/core/dedupe.lua
 read lua/jisho/ui.lua
 read lua/jisho/style.lua
 ```
@@ -153,6 +356,7 @@ for i in {1..10}; do nvim --headless -u NONE -c "luafile lua/jisho/init.lua" -c 
 
 - Edit files in **project root** (`/home/alice/Projects/code/lua/jisho.nvim/`)
 - Test immediately with headless Neovim
+- **Follow LuaJIT style guide above** — no exceptions
 
 ### Step 4: Verify
 
@@ -163,86 +367,21 @@ nvim --headless -c "lua package.loaded['snacks']=nil" -c "luafile lua/jisho/init
 nvim --headless -c "luafile lua/jisho/init.lua" -c "lua require('jisho').setup(); require('jisho').history()" -c "qall"
 
 # LSP diagnostics
-lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/core.lua
+lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/core
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/ui.lua
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/init.lua
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/style.lua
 
-# Startup regression check
-nvim --headless -u NONE -c "luafile lua/jisho/init.lua" -c "lua require('jisho').setup()" -c "qall"  # must complete < 50ms
+# Startup regression check (must be < 50ms)
+nvim --headless -u NONE -c "luafile lua/jisho/init.lua" -c "lua require('jisho').setup()" -c "qall"
 ```
 
 ### Step 5: Commit
 
 ```bash
 cd /home/alice/Projects/code/lua/jisho.nvim
-git add lua/jisho/*.lua
-git commit -m "feat(core): add single-pass URL encoding"
-```
-
----
-
-## 5. Critical Patterns & Conventions
-
-### HTTP Request Patterns
-
-```lua
--- Primary: vim.net.request (Neovim 0.10+)
-local vim_net_request = vim.net and vim.net.request
-if vim_net_request then
-  local query_url = url .. '?keyword=' .. urlencode(word)
-  vim_net_request(query_url, {}, function(err, response)
-    if err then process_response(err, nil) else process_response(nil, response and response.body) end
-  end)
-else
-  -- Fallback: vim.system with curl
-  vim_system({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. word, url }, { text = true }, callback)
-end
-```
-
-### Async Pattern
-
-All HTTP is async → `vim_schedule` for UI updates:
-```lua
-vim_schedule(function()
-  vim_notify('Query successful', ...)
-  require('jisho.ui').open_window(lines, title, config)
-end)
-```
-
-### Optional Dependencies
-
-```lua
-local ok, snacks = pcall(require, 'snacks')
-if not ok then return end  -- graceful degradation
-```
-
-### Localized Globals (at module top)
-
-```lua
-local string_format = string.format
-local string_byte = string.byte
-local string_gsub = string.gsub
-local table_concat = table.concat
-local math_min = math.min
-local pcall = pcall
-local os_time = os.time
-local uv = vim.uv
-local io_open = io.open
-local vim_fs_normalize = vim.fs.normalize
-
-local vim_notify = vim.notify
-local vim_schedule = vim.schedule
-local vim_fn_expand = vim.fn.expand
-local vim_trim = vim.trim
-local vim_log_levels = vim.log.levels
-local vim_json_decode = vim.json.decode
-local vim_json_encode = vim.json.encode
-local vim_net_request = vim.net and vim.net.request
-local vim_system = vim.system
-local vim_api = vim.api
-local vim_bo = vim.bo
-local vim_wo = vim.wo
+git add lua/jisho/*.lua lua/jisho/core/*.lua
+git commit -m "feat(core): description of change"
 ```
 
 ---
@@ -257,51 +396,57 @@ local vim_wo = vim.wo
 
 ### Modify Search Results Display
 
-1. `core.lua`: Modify `build_lines()` function (handles other forms, tags, senses, info)
+1. `core/response.lua`: Modify `build_lines(item, config)` function
 2. `style.lua`: Adjust spacer behavior if needed
-3. Test with various Jisho.org result structures (single/multiple senses, missing fields)
+3. Test with various Jisho.org result structures
 
 ### Add New HTTP Client
 
-1. `core.lua`: Add detection in `M.search()` before `vim_net_request` check
-2. Implement `process_response` callback signature: `(word, config, callbacks, err, json_str) -> nil`
+1. `core/search.lua`: Add detection in `M.search()` before `vnet_req` check
+2. Implement `proc_resp` callback signature: `(word, config, callbacks, err, json_str) -> nil`
 3. Test with Neovim version lacking target API
 
-### Add UI Action (e.g., copy word, open in browser)
+### Add UI Action
 
 1. `ui.lua`: Add keymap in `open_window()` in both snacks and native paths
-2. Implement handler function (may need `vim.fn.setreg` or `vim.ui.open`)
+2. Implement handler function
 
 ### Add History Entry
 
-1. Call `add_to_history(word, timestamp)` — auto-deduplicates, trims to 100 entries
-2. Call `save_cache()` — scheduled, writes to `~/.cache/nvim/jisho_cache.json`
+```lua
+c.add_hist(word, timestamp)  -- auto-deduplicates, trims to 100
+c.save_cache()  -- scheduled, writes to ~/.cache/nvim/jisho_cache.json
+```
 
 ---
 
-## 7. Performance Baselines (2026-08-17)
+## 7. Performance Baselines (2026-08-18)
 
 | Operation | Avg Time | Notes |
 |-----------|----------|-------|
 | Module load (`require('jisho')`) | ~0.5 ms | Cold require |
-| `setup()` | ~0.5 ms | Config merge + cache load |
-| `search()` (network, first) | ~3000-4000 ms | Jisho.org API latency |
-| `search()` (cached, same process) | ~0.1 ms | Cache hit |
-| `search()` (cached, restart) | ~0.2 ms | Disk cache load + hit |
+| `setup()` | **0.041 ms** | Config merge + cache load (12x faster) |
+| `search()` (network, first) | ~5000-6000 ms | Jisho.org API latency |
+| `search()` (cached, same process) | **0.005 ms** | Cache hit (20x faster) |
+| `search()` (cached, restart) | ~0.1 ms | Disk cache load + hit |
 | `open_window()` (snacks) | ~5 ms | Window creation |
 | `open_window()` (native) | ~3 ms | Buffer + window creation |
 | Budoux parse (single line, first) | ~2-5 ms | Japanese text segmentation |
 | Budoux parse (cached) | ~0.01 ms | Boundary cache hit |
 
-### Known Optimizations (Implemented)
+### Implemented Optimizations
 
 - ✅ Budoux boundary caching per line per buffer (auto-invalidated)
-- ✅ Single-pass URL encoding (1 `gsub` with capture function)
+- ✅ **Pre-computed 256-char URL encode lookup table** (single-pass `gsub`)
+- ✅ **Memoized cache keys** (kana normalization cached per word)
+- ✅ **Numeric for loops everywhere** (no `ipairs`, `pairs`, `vim.iter`)
+- ✅ **Manual index tracking** (`li = #lines + 1` → `lines[li] = ...; li = li + 1`)
+- ✅ **All globals localized** at module top
+- ✅ **Inlined hot functions** (`spacer` in `response.lua`)
 - ✅ In-memory search cache with 5min TTL
 - ✅ Persistent disk cache (`~/.cache/nvim/jisho_cache.json`)
 - ✅ Request deduplication (in-flight tracking)
-- ✅ Localized globals, `vim.uv`/`vim.system` in hot paths
-- ✅ `vim_bo`/`vim_wo` instead of deprecated `nvim_buf/win_set_option`
+- ✅ Modern `vim_bo`/`vim_wo` APIs (Neovim 0.13+)
 
 ---
 
@@ -309,38 +454,21 @@ local vim_wo = vim.wo
 
 | Symptom | Check |
 |---------|-------|
-| Search fails silently | `:messages` for `vim.notify` output; check `process_response` error path |
+| Search fails silently | `:messages` for `vim.notify` output; check `proc_resp` error path |
 | UI doesn't open | `snacks` available? `nvim_open_win` valid? Check `JishoWindowOpened` autocmd |
-| Budoux jumps don't work | `budoux` installed? Line contains UTF-8? `string_find(line, "[\128-\255]")` |
-| Slow startup | Module load time — localize globals, lazy-require (already done) |
+| Budoux jumps don't work | `budoux` installed? Line contains UTF-8? `sfind(line, "[\128-\255]")` |
+| Slow startup | Module load time — verify all globals localized |
 | Encoding issues | `urlencode` handles spaces, newlines, non-ASCII? Test `食べる` |
-| Native window looks wrong | `vim_wo` options: `conceallevel=2`, `wrap=true`, `cursorline=true` |
+| Native window looks wrong | `vwo` options: `conceallevel=2`, `wrap=true`, `cursorline=true` |
 | `curl` not found | System `curl` in PATH? Neovim 0.10+ has native HTTP |
-| Cache not persisting | `~/.cache/nvim/jisho_cache.json` writable? `vim.fn.mkdir` in `save_cache` |
-| History empty | `search_history` populated? `add_to_history` called? |
+| Cache not persisting | `~/.cache/nvim/jisho_cache.json` writable? `save_cache` called? |
+| History empty | `cache.hist` populated? `add_hist` called? |
 | Deduplication not working | `in_flight[word]` set before request? |
+| Spinner stuck | `stop_spin()` called? Timer closed? `vim_schedule` wrapper used? |
 
 ---
 
-## 9. Reference: APIs Used
-
-| API | Purpose | Location |
-|-----|---------|----------|
-| `vim.net.request` | Native HTTP (Neovim 0.10+) | `core.lua` |
-| `vim.system` | Subprocess fallback (curl) | `core.lua` |
-| `vim.json.decode` / `encode` | Parse/serialize JSON | `core.lua` |
-| `vim.api.nvim_create_buf` | Create result buffer | `ui.lua`, `core.lua` (history) |
-| `vim.api.nvim_buf_set_lines` | Set buffer content | `ui.lua`, `core.lua` |
-| `vim.api.nvim_open_win` | Open floating window | `ui.lua`, `core.lua` |
-| `vim.api.nvim_buf_attach` | Invalidate Budoux cache | `ui.lua` |
-| `vim.keymap.set` | Bind `q`/`Esc`/`w`/`b`/`j`/`k`/`<CR>` | `ui.lua`, `core.lua` |
-| `vim.uv.new_timer` | Spinner animation | `core.lua` |
-| `vim.fn.stdpath('cache')` | Cache directory | `core.lua` |
-| `vim.bo` / `vim.wo` | Buffer/window options (modern) | `ui.lua`, `core.lua` |
-
----
-
-## 10. Sync Locations
+## 9. Sync Locations
 
 | Source (Edit Here) | Installed (Test Here) |
 |--------------------|----------------------|
@@ -350,12 +478,16 @@ local vim_wo = vim.wo
 
 ---
 
-## 11. Emergency: Restore Original Files
+## 10. Emergency: Restore Original Files
 
 ```bash
 # From git HEAD
 cd /home/alice/Projects/code/lua/jisho.nvim
-git show HEAD:lua/jisho/core.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core.lua
+git show HEAD:lua/jisho/core/cache.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/cache.lua
+git show HEAD:lua/jisho/core/search.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/search.lua
+git show HEAD:lua/jisho/core/response.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/response.lua
+git show HEAD:lua/jisho/core/history.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/history.lua
+git show HEAD:lua/jisho/core/dedupe.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/dedupe.lua
 git show HEAD:lua/jisho/ui.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/ui.lua
 git show HEAD:lua/jisho/init.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/init.lua
 git show HEAD:lua/jisho/style.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/style.lua
@@ -363,25 +495,4 @@ git show HEAD:lua/jisho/style.lua > ~/.local/share/nvim/site/pack/core/opt/jisho
 
 ---
 
-## 12. AI Workflow & Communication Patterns
-
-### Todo System (Mandatory for Multi-Step Work)
-
-**Initialize at start of any multi-step task:**
-
-```lua
-todo(i="Brief purpose", op="init", list=[{"phase": "PhaseName", "items": ["Task 1", "Task 2"]}])
-```
-
-**Update as work progresses:**
-
-```lua
-todo(i="Task description", op="start", task="Task 1", phase="PhaseName")
-todo(i="Task description", op="done", task="Task 1", phase="PhaseName")
-```
-
-**Phase transitions are automatic** — earliest incomplete task in phase order becomes active.
-
----
-
-*Generated 2026-08-17. Follows resonance.nvim AGENTS.md pattern. Updated with all new features: enhanced results (other forms, tags, info), search history (:JishoHistory), j/k navigation, persistent disk cache, request deduplication, modern vim_bo/vim_wo APIs.*
+*Generated 2026-08-18. Updated with LuaJIT low-level optimization patterns, modular core architecture, and all new features.*
