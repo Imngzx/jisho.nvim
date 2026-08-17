@@ -10,9 +10,44 @@
 | File | Responsibility |
 |------|----------------|
 | `lua/jisho/init.lua` | Public API: `setup()`, `search()`, `history()`, user commands `:Jisho`, `:JishoHistory` |
-| `lua/jisho/core.lua` | Search logic: URL encoding, HTTP request, response parsing, line generation, caching, history, deduplication |
+| `lua/jisho/core/init.lua` | Core module exports: `setup`, `search`, `history`, `build_lines` |
+| `lua/jisho/core/cache.lua` | Shared state: cache, history, spinner, URL encoding, dedupe, in-flight tracking |
+| `lua/jisho/core/search.lua` | Search logic: HTTP requests, cache checking, spinner, deduplication |
+| `lua/jisho/core/response.lua` | `build_lines()` - result formatting from Jisho API |
+| `lua/jisho/core/history.lua` | `:JishoHistory` command (snacks.picker + native fallback) |
+| `lua/jisho/core/dedupe.lua` | Stub for future dedupe logic |
 | `lua/jisho/ui.lua` | Window creation: snacks.nvim integration, native fallback, Budoux jumps, j/k navigation |
 | `lua/jisho/style.lua` | Layout functions: `spacious`, `compact`, `super_spacious` spacing |
+
+---
+
+## 2. Core Module Architecture (`lua/jisho/core/`)
+
+### Module Dependencies
+
+```
+core/
+├── init.lua      → exports: setup, search, history, build_lines
+├── cache.lua     ← (no internal deps) — owns all shared state
+├── search.lua    → requires: cache, response
+├── response.lua  → requires: cache (for style)
+├── history.lua   → requires: cache
+├── dedupe.lua    ← (no internal deps) — stub
+└── response.lua  → exports: build_lines
+```
+
+### State Ownership (`cache.lua`)
+
+All mutable state lives in `cache.lua` — other modules read/write via exported functions:
+
+| State | Purpose |
+|-------|---------|
+| `search_cache` | `[word] = { lines, title, timestamp, word }` |
+| `CACHE_TTL` | 300 seconds (5 minutes) |
+| `in_flight` | `{ word = { callbacks = [...] } }` — request deduplication |
+| `spinner_*` | Spinner animation state |
+| `search_history` | `{ { word, timestamp }, ... }` — max 100 entries |
+| `CACHE_FILE` | `~/.cache/nvim/jisho_cache.json` |
 
 ---
 
@@ -33,7 +68,7 @@ require('jisho').setup({
 })
 ```
 
-### Search Flow (`core.lua`)
+### Search Flow (`core/search.lua`)
 
 ```lua
 M.search(word, config)
@@ -47,7 +82,7 @@ M.search(word, config)
       OR vim_system('curl') fallback -- subprocess
   → process_response(err, json_str)
     → pcall(vim_json_decode)
-    → build lines[] table (max 5 results)
+    → build lines[] table (max 5 results) via response.build_lines()
       → word + reading + common + jlpt
       → Other forms (multiple japanese[] entries)
       → Tags (item.tags)
@@ -60,7 +95,7 @@ M.search(word, config)
     → vim_schedule(open_window)
 ```
 
-### URL Encoding (`core.lua`)
+### URL Encoding (`core/cache.lua`)
 
 ```lua
 local function urlencode(str)
@@ -111,11 +146,12 @@ M.open_window(lines, title, config)
 - `j`/`k` keys jump between sense/entry headers (`## ` and `- **N.**`)
 - Works in both snacks and native windows
 
-### History Window (`core.lua:M.history()`)
+### History Window (`core/history.lua`)
 
 - `:JishoHistory` command opens floating window with search history
-- Shows numbered list with timestamps
-- Press `<CR>` on entry to re-search that word
+- Uses `snacks.picker` with `preset='select'` when available (matches workspace.lua pattern)
+- Native fallback window with `<CR>` to re-search
+- Title displays in picker UI
 
 ---
 
@@ -209,7 +245,7 @@ end)
 
 ## 6. Enhanced Results Display
 
-### `build_lines(item, config)` function
+### `build_lines(item, config)` function (`core/response.lua`)
 
 Parses full Jisho API response:
 
@@ -248,12 +284,12 @@ No pitch/accent data available in Jisho API.
 | Optimization | Location | Status |
 |--------------|----------|--------|
 | Budoux boundary caching per line per buffer | `ui.lua` | ✅ Auto-invalidated on buffer change |
-| Single-pass URL encoding | `core.lua` | ✅ 1 `gsub` with capture function |
-| In-memory search cache with 5min TTL | `core.lua` | ✅ |
-| Persistent disk cache | `core.lua` | ✅ `~/.cache/nvim/jisho_cache.json` |
-| Request deduplication | `core.lua` | ✅ In-flight tracking |
+| Single-pass URL encoding | `core/cache.lua` | ✅ 1 `gsub` with capture function |
+| In-memory search cache with 5min TTL | `core/cache.lua` | ✅ |
+| Persistent disk cache | `core/cache.lua` | ✅ `~/.cache/nvim/jisho_cache.json` |
+| Request deduplication | `core/cache.lua` + `core/search.lua` | ✅ In-flight tracking |
 | Localized globals | All files | ✅ |
-| `vim.uv`/`vim.system` in hot paths | `core.lua` | ✅ |
+| `vim.uv`/`vim.system` in hot paths | `core/` | ✅ |
 | `vim_bo`/`vim_wo` instead of deprecated APIs | All files | ✅ Neovim 0.13+ compatible |
 
 ---
@@ -279,7 +315,7 @@ nvim --headless -c "luafile lua/jisho/init.lua" -c "lua require('jisho').setup()
 for i in {1..10}; do nvim --headless -u NONE -c "luafile lua/jisho/init.lua" -c "lua require('jisho').setup()" -c "qall"; done 2>&1 | tail -5
 
 # LSP diagnostics
-lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/core.lua
+lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/core
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/ui.lua
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/init.lua
 lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/style.lua
@@ -294,7 +330,7 @@ lua-language-server --check=/home/alice/Projects/code/lua/jisho.nvim/lua/jisho/s
 ```lua
 local vim_net_request = vim.net and vim.net.request
 if vim_net_request then
-  local query_url = url .. '?keyword=' .. urlencode(word)
+  local query_url = url .. '?keyword=' .. cache.urlencode(word)
   vim_net_request(query_url, {}, function(err, response)
     if err then process_response(err, nil) else process_response(nil, response and response.body) end
   end)
@@ -369,13 +405,13 @@ vim_wo[win].conceallevel = 2
 
 ### Modify Search Results Display
 
-1. `core.lua`: Modify `build_lines(item, config)` function
+1. `core/response.lua`: Modify `build_lines(item, config)` function
 2. `style.lua`: Adjust spacer behavior if needed
 3. Test with various Jisho.org result structures
 
 ### Add New HTTP Client
 
-1. `core.lua`: Add detection in `M.search()` before `vim_net_request` check
+1. `core/search.lua`: Add detection in `M.search()` before `vim_net_request` check
 2. Implement `process_response(word, config, callbacks, err, json_str)` signature
 3. Test with Neovim version lacking target API
 
@@ -387,8 +423,8 @@ vim_wo[win].conceallevel = 2
 ### Add History Entry
 
 ```lua
-add_to_history(word, timestamp)
-save_cache()
+cache.add_to_history(word, timestamp)
+cache.save_cache()
 ```
 
 ---
@@ -397,11 +433,11 @@ save_cache()
 
 | Issue | Location | Notes |
 |-------|----------|-------|
-| Max 5 results hardcoded | `core.lua` | `local len = math_min(5, #data)` |
+| Max 5 results hardcoded | `core/search.lua` | `local len = math_min(5, #data)` |
 | No pitch/accent data | Jisho API | Not provided by API |
-| Cache TTL 5min fixed | `core.lua` | `CACHE_TTL = 300` |
-| History max 100 entries | `core.lua` | `MAX_HISTORY = 100` |
-| `curl` fallback spawns process | `core.lua` | Neovim 0.10+ preferred |
+| Cache TTL 5min fixed | `core/cache.lua` | `CACHE_TTL = 300` |
+| History max 100 entries | `core/cache.lua` | `MAX_HISTORY = 100` |
+| `curl` fallback spawns process | `core/search.lua` | Neovim 0.10+ preferred |
 | Requires internet | — | No offline mode |
 
 ---
@@ -445,6 +481,17 @@ save_cache()
 - **Request Deduplication**: In-flight tracking prevents duplicate API calls
 - **Modern APIs**: `vim_bo`/`vim_wo` instead of deprecated `nvim_buf/win_set_option`
 
+### Refactoring (2026-08-17)
+
+- **Modularized `core.lua`** into `core/` directory with 7 focused files:
+  - `core/init.lua` — exports
+  - `core/cache.lua` — all shared state
+  - `core/search.lua` — search logic
+  - `core/response.lua` — result formatting
+  - `core/history.lua` — history command
+  - `core/dedupe.lua` — stub
+  - `core/response.lua` — exports `build_lines`
+
 ### Performance Optimizations
 
 - Budoux boundary caching (per line, per buffer, auto-invalidated)
@@ -454,4 +501,4 @@ save_cache()
 
 ---
 
-*Generated 2026-08-17. Follows resonance.nvim knowledge base pattern. Updated with all new features: enhanced results, search history, j/k navigation, persistent disk cache, request deduplication, modern vim_bo/vim_wo APIs.*
+*Generated 2026-08-17. Follows resonance.nvim knowledge base pattern. Updated with modular core architecture.*
