@@ -1,22 +1,38 @@
 local M = {}
 
-local function build_lines(item, config)
-  local lines = {}
-  local jp_list = item.japanese or {}
-  local spacer = require('jisho.style').spacer
-  local layout = config.layout
+local string_format = string.format
+local string_upper = string.upper
+local table_concat = table.concat
 
-  -- Main word + other forms
+local function spacer(lines, layout)
+  local layouts = require('jisho.style').layouts
+  local layout_fn = layouts[layout]
+  if layout_fn then
+    layout_fn(lines)
+  else
+    layouts.spacious(lines)
+  end
+end
+
+local function build_lines(item, config)
+  local jp_list = item.japanese or {}
+  local layout = config.layout
+  local senses = item.senses or {}
+
+  local lines = {}
+
   local main_jp = jp_list[1] or {}
   local word_jp = main_jp.word or main_jp.reading or 'Unknown'
-  local reading = (main_jp.word and main_jp.reading) and (' *( ' .. main_jp.reading .. ' )*') or ''
-
-  local string_format = string.format
-  local string_upper = string.upper
-  local table_concat = table.concat
+  local reading = ''
+  if main_jp.word and main_jp.reading then
+    reading = ' *( ' .. main_jp.reading .. ' )*'
+  end
 
   local is_common = item.is_common and ' `⭐ Common`' or ''
-  local jlpt = (item.jlpt and #item.jlpt > 0) and (' `' .. string_upper(item.jlpt[1]) .. '`') or ''
+  local jlpt = ''
+  if item.jlpt and #item.jlpt > 0 then
+    jlpt = ' `' .. string_upper(item.jlpt[1]) .. '`'
+  end
 
   lines[#lines + 1] = string_format('## %s%s%s%s', word_jp, reading, is_common, jlpt)
   spacer(lines, layout)
@@ -49,7 +65,6 @@ local function build_lines(item, config)
   end
 
   -- Senses
-  local senses = item.senses or {}
   for j = 1, #senses do
     local sense = senses[j]
     local eng = table_concat(sense.english_definitions or {}, ', ')

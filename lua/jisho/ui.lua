@@ -74,10 +74,8 @@ local function setup_budoux_jumps(buf, config)
     end
 
     local boundaries = get_boundaries(row, line)
-
     if dir == 'w' then
-      for i = 1, #boundaries do
-        local b = boundaries[i]
+      for _, b in ipairs(boundaries) do
         if b > col then
           if b <= #line then
             nvim_win_set_cursor(0, { row, b - 1 })
@@ -107,12 +105,12 @@ end
 function M.open_window(lines, title, config)
   -- Shared navigation setup for both paths
   local function setup_navigation(buf, win, nav_lines)
-    local nav_targets = {}
-    for i, line in ipairs(nav_lines) do
-      if line:match('^## ') or line:match('^%- %*%*%d+%*%*') then
-        nav_targets[#nav_targets + 1] = i
-      end
-    end
+    local nav_targets = vim.iter(ipairs(nav_lines))
+      :filter(function(_, line)
+        return line:match('^## ') or line:match('^%- %*%*%d+%*%*')
+      end)
+      :map(function(i) return i end)
+      :totable()
 
     local function nav(dir)
       if #nav_targets == 0 then return end

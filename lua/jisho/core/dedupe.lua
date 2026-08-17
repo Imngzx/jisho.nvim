@@ -7,6 +7,13 @@ local string_format = string.format
 local vim_notify = vim.notify
 local vim_log_levels = vim.log.levels
 
+-- Cache key memoization
+local _cache_key_memo = {}
+
+local function clear_cache_key_memo()
+  _cache_key_memo = {}
+end
+
 -- ============================================================
 -- Feature 1: Inspect/Clear In-Flight Requests
 -- ============================================================
@@ -14,10 +21,10 @@ local vim_log_levels = vim.log.levels
 function M.inspect_inflight()
   local count = 0
   local words = {}
-  for word, data in pairs(cache.in_flight) do
+  vim.iter(pairs(cache.in_flight)):each(function(word, data)
     count = count + 1
     words[#words + 1] = string_format('%s (%d callbacks)', word, #data.callbacks)
-  end
+  end)
   if count == 0 then
     vim_notify('No in-flight requests', vim_log_levels.INFO, { title = 'Jisho Dedupe' })
   else
@@ -28,10 +35,10 @@ end
 
 function M.clear_inflight()
   local count = 0
-  for word in pairs(cache.in_flight) do
+  vim.iter(pairs(cache.in_flight)):each(function(word)
     cache.in_flight[word] = nil
     count = count + 1
-  end
+  end)
   vim_notify(string_format('Cleared %d in-flight request(s)', count), vim_log_levels.INFO, { title = 'Jisho Dedupe' })
 end
 
@@ -71,25 +78,30 @@ local function normalize_kana(word)
 end
 
 local function get_cache_key(word)
+  local cached = _cache_key_memo[word]
+  if cached then return cached end
   -- Normalize: lowercase, trim, collapse spaces, normalize kana
   local normalized = string.lower(vim.trim(word))
   normalized = string.gsub(normalized, '%s+', ' ')
   normalized = normalize_kana(normalized)
+  _cache_key_memo[word] = normalized
   return normalized
 end
 
 function M.check_cache_duplicate(word)
   local key = get_cache_key(word)
-  for cached_word, entry in pairs(cache.search_cache) do
-    if get_cache_key(cached_word) == key then
-      return cached_word, entry
-    end
+  local result = vim.iter(pairs(cache.search_cache)):find(function(cached_word)
+    return get_cache_key(cached_word) == key
+  end)
+  if result then
+    return result, cache.search_cache[result]
   end
   return nil, nil
 end
 
 function M.clear_cache()
   cache.search_cache = {}
+  clear_cache_key_memo()
   cache.save_cache()
   vim_notify('Search cache cleared', vim_log_levels.INFO, { title = 'Jisho Dedupe' })
 end
@@ -106,6 +118,8 @@ function M.refresh(word, config)
     vim_notify('Please provide the Japanese word to query.', vim_log_levels.WARN)
     return
   end
+
+  config = config or cache.config
 
   -- Remove from cache if exists
   local cached = cache.search_cache[word]

@@ -12,20 +12,19 @@ local os_time = os.time
 local function process_response(word, config, callbacks, err, json_str)
   -- Clean up in-flight
   cache.in_flight[word] = nil
-
   if err or not json_str then
-    for _, cb in ipairs(callbacks) do
+    vim.iter(callbacks):each(function(cb)
       vim_schedule(function() cb(nil, err or 'Empty response') end)
-    end
+    end)
     cache.stop_spinner(false, word, err)
     return
   end
 
   local ok, parsed = pcall(vim_json_decode, json_str)
   if not ok or not parsed or not parsed.data or #parsed.data == 0 then
-    for _, cb in ipairs(callbacks) do
+    vim.iter(callbacks):each(function(cb)
       vim_schedule(function() cb(nil, 'Word not found') end)
-    end
+    end)
     cache.stop_spinner(false, word, 'Word not found')
     return
   end
@@ -37,14 +36,13 @@ local function process_response(word, config, callbacks, err, json_str)
   for i = 1, len do
     local item = data[i]
     local item_lines = response.build_lines(item, config)
-    for _, line in ipairs(item_lines) do
+    vim.iter(item_lines):each(function(line)
       all_lines[#all_lines + 1] = line
-    end
+    end)
     require('jisho.style').spacer(all_lines, config.layout)
     all_lines[#all_lines + 1] = '---'
     require('jisho.style').spacer(all_lines, config.layout)
   end
-
   local title = ' 辞書 Jisho.org: ' .. word .. ' '
   local timestamp = os_time()
 
@@ -57,10 +55,9 @@ local function process_response(word, config, callbacks, err, json_str)
   }
   cache.add_to_history(word, timestamp)
   cache.save_cache()
-
-  for _, cb in ipairs(callbacks) do
+  vim.iter(callbacks):each(function(cb)
     vim_schedule(function() cb(all_lines, title, word) end)
-  end
+  end)
 
   cache.stop_spinner(true, word)
 end
@@ -102,16 +99,16 @@ function M.search(word, config)
     return
   end
 
-  cache.in_flight[word] = { callbacks = callbacks }
-
-  -- Start spinner
-  cache.start_spinner(word)
-
   local url = 'https://jisho.org/api/v1/search/words'
+
+  cache.start_spinner(word)
 
   if vim_net_request then
     local query_url = url .. '?keyword=' .. cache.urlencode(word)
-    vim_net_request(query_url, {}, function(err, response)
+    vim_net_request(query_url, {
+      retry = 3,
+      verbose = false,
+    }, function(err, response)
       process_response(word, config,
         cache.in_flight[word] and cache.in_flight[word].callbacks or callbacks, err,
         response and response.body)

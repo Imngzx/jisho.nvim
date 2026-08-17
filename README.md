@@ -2,11 +2,11 @@
 
 ----------
 
-A blazing fast, zero-dependency Japanese dictionary plugin for Neovim, powered by [Jisho.org](https://jisho.org). 
+A blazing fast, zero-dependency Japanese dictionary plugin for Neovim, powered by [Jisho.org](https://jisho.org).
 
 Good for Japanese learners, anime enthusiasts, or anyone reading Japanese documentation and source code.
 
-![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9) 
+![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9)
 
 ## Layout Previews
 
@@ -25,10 +25,15 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ## ✨ Features
 
-- **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()` + `vim.net.request()`. Never blocks your UI.
-- **Zero Dependencies:** Works out of the box. No external plugins required. (* optional snacks and budoux.lua)
-- **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown syntax.
+- **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()` + `vim.net.request()` with automatic retries. Never blocks your UI.
+- **Zero Dependencies:** Works out of the box. No external plugins required. (optional: snacks.nvim, budoux.lua)
+- **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown with other forms, tags, sense info, see-also, and sense tags.
 - **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
+- **Persistent Cache:** Disk cache at `~/.cache/nvim/jisho_cache.json` survives Neovim restarts with 5-minute TTL.
+- **Request Deduplication:** In-flight tracking prevents duplicate API calls for the same word.
+- **Search History:** `:JishoHistory` command with timestamps, Enter to re-search (snacks.picker + native fallback).
+- **Navigation:** `j`/`k` jump between senses/entries, `w`/`b` Budoux-aware Japanese word jumps.
+- **Modern Neovim APIs:** Uses `vim.iter`, `vim.uv`, `vim.bo`/`vim.wo`, `vim.net.request` with retries.
 - **Vibe Coded:** Minimalist code, extreme performance, examined by author.
 
 ## 📦 Installation
@@ -42,6 +47,7 @@ vim.pack.add('https://github.com/Imngzx/jisho.nvim')
 ```
 
 Then, add the setup and keymaps to your `init.lua`:
+
 ```lua
 require('jisho').setup()
 
@@ -61,7 +67,7 @@ end, { desc = 'Jisho (Selection)' })
 ```lua
 {
   "Imngzx/jisho.nvim",
-  cmd = "Jisho",
+  cmd = { "Jisho", "JishoHistory", "JishoDedupe", "JishoRefresh" },
   keys = {
     {
       '<leader>tj',
@@ -121,23 +127,49 @@ Here's my [jisho](https://github.com/Imngzx/nvim-config-rice-.ver-/blob/nvim-nat
 ## 🚀 Usage
 
 ### Command Line
+
 You can search any word anywhere via the command line:
+
 ```vim
 :Jisho 食べる
 :Jisho hello
 ```
 
 ### Keymaps
+
 If you configured the keymaps as shown above:
+
 - **Normal Mode:** Press `<leader>tj` to translate the word directly under your cursor.
 - **Visual Mode:** Select any text and press `<leader>tj` to translate the selection.
 
+### User Commands
+
+| Command | Description |
+|---------|-------------|
+| `:Jisho [word]` | Search for a word (uses word under cursor if omitted) |
+| `:JishoHistory` | Open search history picker (snacks.picker or native) |
+| `:JishoDedupe inflight` | Inspect in-flight requests |
+| `:JishoDedupe clear-inflight` | Clear all in-flight requests |
+| `:JishoDedupe clear-cache` | Clear search cache |
+| `:JishoDedupe refresh [word]` | Force refresh (bypasses cache) |
+| `:JishoRefresh [word]` | Shortcut for force refresh |
+
+### Result Window Navigation
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Jump between senses/entries |
+| `w` / `b` | Budoux-aware Japanese word jumps |
+| `q` / `<Esc>` | Close window |
+| `<CR>` (in history) | Re-search selected entry |
+
 ## 🤝 Requirements
-- Neovim >= 0.10.0 (uses `vim.system`)
-- `curl` available in your system's PATH. * For older nvim version <0.12
-- [Budoux plugin](https://github.com/atusy/budoux.lua) *optional
-- [snacks.nvim](https://github.com/folke/snacks.nvim) *author's suggestion 👍
-- [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) *author's suggestion 👍
+
+- Neovim >= 0.10.0 (uses `vim.system`, `vim.net.request`)
+- `curl` available in your system's PATH (fallback for older Neovim versions)
+- [Budoux plugin](https://github.com/atusy/budoux.lua) *optional - for Japanese word segmentation*
+- [snacks.nvim](https://github.com/folke/snacks.nvim) *recommended for best UI experience*
+- [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) *recommended for best markdown rendering*
 
 ## License
 

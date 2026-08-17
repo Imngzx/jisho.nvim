@@ -1,6 +1,5 @@
 local M = {}
 
-
 local string_format = string.format
 local string_byte = string.byte
 local string_gsub = string.gsub
@@ -15,6 +14,28 @@ local vim_schedule = vim.schedule
 local vim_log_levels = vim.log.levels
 local vim_json_decode = vim.json.decode
 local vim_json_encode = vim.json.encode
+
+-- Pre-compute URL encoding lookup table for performance
+local _url_encode_map = {}
+for i = 0, 255 do
+  local c = string.char(i)
+  if c:match('[%w%-%_%.%~]') then
+    _url_encode_map[i] = c
+  elseif c == ' ' then
+    _url_encode_map[i] = '+'
+  elseif c == '\n' then
+    _url_encode_map[i] = '%0D%0A'
+  else
+    _url_encode_map[i] = string_format('%%%02X', i)
+  end
+end
+
+local function urlencode(str)
+  if not str then return '' end
+  return string_gsub(str, '.', function(c)
+    return _url_encode_map[string_byte(c)]
+  end)
+end
 
 -- Search cache: [normalized_word] = { lines = {...}, title = "...", timestamp = ..., word = "..." }
 local search_cache = {}
@@ -36,15 +57,6 @@ local spinner_frame_idx = 1
 local search_history = {}
 local MAX_HISTORY = 100
 
-local function urlencode(str)
-  if not str then return '' end
-  return string_gsub(str, '([^\r\n%w %-%_%.%~])', function(c)
-    if c == ' ' then return '+' end
-    if c == '\n' then return '%0D%0A' end
-    return string_format('%%%02X', string_byte(c))
-  end)
-end
-
 local function load_cache()
   local f = io_open(CACHE_FILE, 'r')
   if not f then return end
@@ -53,14 +65,14 @@ local function load_cache()
   local ok, data = pcall(vim_json_decode, content)
   if ok and data and data.version == CACHE_VERSION then
     local now = os_time()
-    for word, entry in pairs(data.cache or {}) do
+    vim.iter(pairs(data.cache or {})):each(function(word, entry)
       if (now - entry.timestamp) < CACHE_TTL then
         search_cache[word] = entry
       end
-    end
-    for _, entry in ipairs(data.history or {}) do
+    end)
+    vim.iter(ipairs(data.history or {})):each(function(_, entry)
       table.insert(search_history, entry)
-    end
+    end)
   end
 end
 
@@ -81,17 +93,18 @@ local function save_cache()
 end
 
 local function add_to_history(word, timestamp)
-  -- Remove existing entry for this word
+  -- Remove existing entry for this word (reverse iteration to avoid index shift)
   for i = #search_history, 1, -1 do
     if search_history[i].word == word then
       table.remove(search_history, i)
+      break -- only one entry per word
     end
   end
   -- Add to front
   table.insert(search_history, 1, { word = word, timestamp = timestamp })
-  -- Trim
-  while #search_history > MAX_HISTORY do
-    table.remove(search_history)
+  -- Trim efficiently: just slice if over limit
+  if #search_history > MAX_HISTORY then
+    search_history[MAX_HISTORY + 1] = nil
   end
   save_cache()
 end
@@ -99,15 +112,11 @@ end
 local function start_spinner(word)
   spinner_word = word
   spinner_frame_idx = 1
-  local frame = spinner_frames[1]
-  vim_notify(frame .. ' Searching: ' .. word, vim_log_levels.INFO,
-    { title = 'Jisho.org', id = spinner_notify_id })
-
   spinner_timer = uv.new_timer()
   spinner_timer:start(0, 80, function()
+    spinner_frame_idx = (spinner_frame_idx % #spinner_frames) + 1
+    local frame = spinner_frames[spinner_frame_idx]
     vim_schedule(function()
-      spinner_frame_idx = (spinner_frame_idx % #spinner_frames) + 1
-      frame = spinner_frames[spinner_frame_idx]
       vim_notify(frame .. ' Searching: ' .. spinner_word, vim_log_levels.INFO,
         { title = 'Jisho.org', id = spinner_notify_id })
     end)
@@ -122,13 +131,15 @@ local function stop_spinner(success, word, err)
   end
   spinner_word = nil
 
-  if success then
-    vim_notify('✓ Query successful: ' .. word, vim_log_levels.INFO,
-      { title = 'Jisho.org', id = spinner_notify_id, timeout = 10 })
-  else
-    vim_notify('✗ Search failed: ' .. word .. (err and (' - ' .. err) or ''), vim_log_levels.ERROR,
-      { title = 'Jisho.org', id = spinner_notify_id })
-  end
+  vim_schedule(function()
+    if success then
+      vim_notify('✓ Query successful: ' .. word, vim_log_levels.INFO,
+        { title = 'Jisho.org', id = spinner_notify_id, timeout = 10 })
+    else
+      vim_notify('✗ Search failed: ' .. word .. (err and (' - ' .. err) or ''), vim_log_levels.ERROR,
+        { title = 'Jisho.org', id = spinner_notify_id })
+    end
+  end)
 end
 
 -- Export for other modules
