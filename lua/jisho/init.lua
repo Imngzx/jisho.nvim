@@ -30,14 +30,23 @@ M.config = {
 ---@param opts? JishoConfig
 function M.setup(opts)
   M.config = vim_tbl_deep_extend('force', M.config, opts or {})
+  require('jisho.core').setup(M.config)
 end
 
 function M.search(word)
   require('jisho.core').search(word, M.config)
 end
 
+function M.history()
+  require('jisho.core').history()
+end
+
 nvim_create_user_command('Jisho', function(opts)
   require('jisho.core').search(opts.args, M.config)
 end, { nargs = '*' })
+
+nvim_create_user_command('JishoHistory', function()
+  require('jisho.core').history()
+end, {})
 
 return M

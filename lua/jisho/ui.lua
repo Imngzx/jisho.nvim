@@ -15,12 +15,16 @@ local nvim_buf_is_valid = vim_api.nvim_buf_is_valid
 local nvim_win_is_valid = vim_api.nvim_win_is_valid
 local nvim_win_close = vim_api.nvim_win_close
 local nvim_exec_autocmds = vim_api.nvim_exec_autocmds
+local nvim_buf_attach = vim_api.nvim_buf_attach
 
 local vim_cmd = vim.cmd
 local vim_keymap_set = vim.keymap.set
 local vim_o = vim.o
 local vim_bo = vim.bo
 local vim_wo = vim.wo
+
+-- Budoux boundary cache: [buf][line_num] = { boundaries = {...}, text = "..." }
+local budoux_cache = {}
 
 local function setup_budoux_jumps(buf, config)
   if not config.use_budoux then return end
@@ -29,6 +33,33 @@ local function setup_budoux_jumps(buf, config)
 
   if not M._budoux_parser then
     M._budoux_parser = budoux.load_japanese_model()
+  end
+
+  -- Initialize cache for this buffer
+  budoux_cache[buf] = {}
+
+  -- Invalidate cache on buffer changes
+  nvim_buf_attach(buf, false, {
+    on_lines = function()
+      budoux_cache[buf] = {}
+    end
+  })
+
+  local function get_boundaries(line_num, line_text)
+    local buf_cache = budoux_cache[buf]
+    local cached = buf_cache[line_num]
+    if cached and cached.text == line_text then
+      return cached.boundaries
+    end
+    local segments = M._budoux_parser.parse(line_text)
+    local boundaries = { 1 }
+    local current = 1
+    for i = 1, #segments do
+      current = current + #segments[i]
+      boundaries[#boundaries + 1] = current
+    end
+    buf_cache[line_num] = { boundaries = boundaries, text = line_text }
+    return boundaries
   end
 
   local function jump(dir)
@@ -42,14 +73,7 @@ local function setup_budoux_jumps(buf, config)
       return
     end
 
-    local segments = M._budoux_parser.parse(line)
-    local boundaries = { 1 }
-    local current = 1
-
-    for i = 1, #segments do
-      current = current + #segments[i]
-      boundaries[#boundaries + 1] = current
-    end
+    local boundaries = get_boundaries(row, line)
 
     if dir == 'w' then
       for i = 1, #boundaries do
@@ -79,6 +103,40 @@ local function setup_budoux_jumps(buf, config)
 end
 
 function M.open_window(lines, title, config)
+  -- Shared navigation setup for both paths
+  local function setup_navigation(buf, win, nav_lines)
+    local nav_targets = {}
+    for i, line in ipairs(nav_lines) do
+      if line:match('^## ') or line:match('^%- %*%*%d+%*%*') then
+        nav_targets[#nav_targets + 1] = i
+      end
+    end
+
+    local function nav(dir)
+      if #nav_targets == 0 then return end
+      local cursor = nvim_win_get_cursor(win)
+      local row = cursor[1]
+      local idx = 1
+      for i, target in ipairs(nav_targets) do
+        if target >= row then
+          idx = i
+          break
+        end
+        idx = i + 1
+      end
+
+      if dir == 'j' then
+        idx = math.min(idx + 1, #nav_targets)
+      elseif dir == 'k' then
+        idx = math.max(idx - 1, 1)
+      end
+      nvim_win_set_cursor(win, { nav_targets[idx], 0 })
+    end
+
+    vim_keymap_set('n', 'j', function() nav('j') end, { buf = buf, silent = true, desc = "Next sense/entry" })
+    vim_keymap_set('n', 'k', function() nav('k') end, { buf = buf, silent = true, desc = "Prev sense/entry" })
+  end
+
   -- Plan A: uses snacks win
   if config.use_snacks then
     local ok, snacks = pcall(require, 'snacks')
@@ -108,6 +166,7 @@ function M.open_window(lines, title, config)
       if win and win.buf and nvim_buf_is_valid(win.buf) then
         vim_bo[win.buf].modifiable = false
         setup_budoux_jumps(win.buf, config)
+        setup_navigation(win.buf, win.win, lines)
 
         nvim_exec_autocmds('User', {
           pattern = 'JishoWindowOpened',
@@ -166,6 +225,7 @@ function M.open_window(lines, title, config)
   vim_keymap_set('n', '<Esc>', close_cmd, { buf = buf, nowait = true, silent = true })
 
   setup_budoux_jumps(buf, config)
+  setup_navigation(buf, win, lines)
 
   nvim_exec_autocmds('User', {
     pattern = 'JishoWindowOpened',
