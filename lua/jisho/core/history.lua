@@ -1,6 +1,7 @@
 local M = {}
 
 local cache = require('jisho.core.cache')
+local search = require('jisho.core.search')
 
 local string_format = string.format
 local os_date = os.date
@@ -29,18 +30,7 @@ function M.history(config)
       snacks.picker({
         title = ' 🏮 Jisho History ',
         items = items,
-        layout = {
-          preset = 'select',
-          layout = {
-            width = 0.45,
-            height = 0.4,
-            backdrop = 60
-            -- border = 'rounded',
-            -- box = 'vertical',
-            -- { win = 'input', height = 1, border = 'bottom' },
-            -- { win = 'list', border = 'none' },
-          }
-        },
+        layout = { preset = 'select' },
         format = function(item, _)
           local hl_text = 'Normal'
           local hl_icon = 'DiagnosticHint'
@@ -52,7 +42,7 @@ function M.history(config)
         end,
         confirm = function(picker, item)
           picker:close()
-          vim_schedule(function() M.search(item.word, config) end)
+          vim_schedule(function() search.search(item.word, config) end)
         end,
       })
       return
@@ -111,12 +101,10 @@ function M.history(config)
     local cursor = vim_api.nvim_win_get_cursor(win)
     local line = vim_api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1]
     local word = line:match('%*%*(.-)%*%*')
-    if word then
-      close_cmd()
-      vim_schedule(function() M.search(word, config) end)
-    end
+    if not word then return end
+    close_cmd()
+    vim_schedule(function() search.search(word, config) end)
   end, { buffer = buf, nowait = true, silent = true })
 end
 
 return M
-
