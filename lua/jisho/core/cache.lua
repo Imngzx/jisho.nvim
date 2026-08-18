@@ -82,7 +82,7 @@ local function save_cache()
     vfn.mkdir(dir, 'p')
     local f = iopen(CACHE_FILE, 'w')
     if not f then return end
-    f:write(vjson_enc({ version = CACHE_VER, cache = search_cache, history = hist }))
+    f:write(vjson_enc({ version = CACHE_VER, cache = search_cache, history = hist }, { indent = '  ' }))
     f:close()
   end)
 end
