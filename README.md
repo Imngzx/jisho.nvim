@@ -98,9 +98,7 @@ end, { desc = 'Jisho (Selection)' })
 ### Method 3: [Resonance.nvim](https://github.com/Imngzx/resonance.nvim)
 
 ```lua
-local resonance = require('resonance')
-
-resonance.load({
+require('resonance').load({
   'https://github.com/Imngzx/jisho.nvim',
 
   -- optional
