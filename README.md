@@ -54,11 +54,12 @@ require('jisho').setup()
 -- Setup keymaps
 vim.keymap.set('n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' })
 vim.keymap.set('v', '<leader>tj', function()
-  local start_pos = vim.fn.getpos('v')
-  local end_pos = vim.fn.getpos('.')
-  local lines = vim.fn.getregion(start_pos, end_pos)
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
-  require('jisho').search(table.concat(lines, ' '))
+   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
+   vim.schedule(function()
+   local s = vim.api.nvim_buf_get_mark(0, '<')
+   local e = vim.api.nvim_buf_get_mark(0, '>')
+   local lines = vim.fn.getregion({ 0, s[1], s[2] + 1, 0 }, { 0, e[1], e[2] + 1, 0 })
+   require('jisho').search(table.concat(lines, ' '))
 end, { desc = 'Jisho (Selection)' })
 ```
 
@@ -78,11 +79,13 @@ end, { desc = 'Jisho (Selection)' })
     {
       '<leader>tj',
       function()
-        local start_pos = vim.fn.getpos('v')
-        local end_pos = vim.fn.getpos('.')
-        local lines = vim.fn.getregion(start_pos, end_pos)
         vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
-        require('jisho').search(table.concat(lines, ' '))
+        vim.schedule(function()
+          local s = vim.api.nvim_buf_get_mark(0, '<')
+          local e = vim.api.nvim_buf_get_mark(0, '>')
+          local lines = vim.fn.getregion({ 0, s[1], s[2] + 1, 0 }, { 0, e[1], e[2] + 1, 0 })
+          require('jisho').search(table.concat(lines, ' '))
+        end)
       end,
       mode = 'v',
       desc = 'Jisho (Selection)',
@@ -90,6 +93,41 @@ end, { desc = 'Jisho (Selection)' })
   },
   opts = {},
 }
+```
+
+### Method 3: [Resonance.nvim](https://github.com/Imngzx/resonance.nvim)
+
+```lua
+local resonance = require('resonance')
+
+resonance.load({
+  'https://github.com/Imngzx/jisho.nvim',
+
+  -- optional
+  dependencies = { 'https://github.com/atusy/budoux.lua', },
+
+  cmd = { 'Jisho' },
+
+  keys = {
+    { 'n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' } },
+    { 'v', '<leader>tj', function()
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
+      vim.schedule(function()
+        local s = vim.api.nvim_buf_get_mark(0, '<')
+        local e = vim.api.nvim_buf_get_mark(0, '>')
+        local lines = vim.fn.getregion({ 0, s[1], s[2] + 1, 0 }, { 0, e[1], e[2] + 1, 0 })
+        require('jisho').search(table.concat(lines, ' '))
+      end)
+    end, { desc = 'Jisho (Selection)' } },
+  },
+
+  config = function()
+    require('jisho').setup({
+      use_budoux = true,
+      layout = 'spacious',
+    })
+  end,
+})
 ```
 
 ## ⚙️ Configuration
