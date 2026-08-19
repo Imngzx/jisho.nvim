@@ -64,9 +64,12 @@ nvim_create_user_command('JishoDedupe', function(opts)
   elseif subcmd == 'refresh' then
     dedupe.refresh(opts.fargs[1], M.config)
   else
-    vim.notify('Usage: JishoDedupe [inflight|clear-inflight|clear-cache|refresh <word>]', vim.log.levels.INFO, { title = 'Jisho Dedupe' })
+    vim.notify('Usage: JishoDedupe [inflight|clear-inflight|clear-cache|refresh <word>]',
+      vim.log.levels.INFO, { title = 'Jisho Dedupe' })
   end
-end, { nargs = '*', complete = function() return { 'inflight', 'clear-inflight', 'clear-cache', 'refresh' } end })
+end,
+  { nargs = '*', complete = function() return { 'inflight', 'clear-inflight', 'clear-cache',
+      'refresh' } end })
 
 nvim_create_user_command('JishoRefresh', function(opts)
   dedupe.refresh(opts.args, M.config)

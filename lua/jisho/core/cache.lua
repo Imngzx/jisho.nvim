@@ -82,7 +82,8 @@ local function save_cache()
     vfn.mkdir(dir, 'p')
     local f = iopen(CACHE_FILE, 'w')
     if not f then return end
-    f:write(vjson_enc({ version = CACHE_VER, cache = search_cache, history = hist }, { indent = '  ' }))
+    f:write(vjson_enc({ version = CACHE_VER, cache = search_cache, history = hist },
+      { indent = '  ' }))
     f:close()
   end)
 end
@@ -106,7 +107,8 @@ local function start_spin(w)
   spin_timer:start(0, 80, function()
     spin_idx = (spin_idx % 10) + 1
     vsched(function()
-      vnotif(spin_frames[spin_idx] .. ' Searching: ' .. spin_word, vlog.INFO, { title = 'Jisho.org', id = spin_id })
+      vnotif(spin_frames[spin_idx] .. ' Searching: ' .. spin_word, vlog.INFO,
+        { title = 'Jisho.org', id = spin_id })
     end)
   end)
 end
@@ -120,9 +122,11 @@ local function stop_spin(ok, w, err)
   spin_word = nil
   vsched(function()
     if ok then
-      vnotif('✓ Query successful: ' .. w, vlog.INFO, { title = 'Jisho.org', id = spin_id, timeout = 10 })
+      vnotif('✓ Query successful: ' .. w, vlog.INFO,
+        { title = 'Jisho.org', id = spin_id, timeout = 10 })
     else
-      vnotif('✗ Search failed: ' .. w .. (err and (' - ' .. err) or ''), vlog.ERROR, { title = 'Jisho.org', id = spin_id })
+      vnotif('✗ Search failed: ' .. w .. (err and (' - ' .. err) or ''), vlog.ERROR,
+        { title = 'Jisho.org', id = spin_id })
     end
   end)
 end

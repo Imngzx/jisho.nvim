@@ -96,11 +96,16 @@ local function setup_nav(buf, win, navl)
     local row = cur[1]
     local idx = 1
     for i = 1, #targs do
-      if targs[i] >= row then idx = i; break end
+      if targs[i] >= row then
+        idx = i; break
+      end
       idx = i + 1
     end
-    if dir == 'j' then idx = math.min(idx + 1, #targs)
-    else idx = math.max(idx - 1, 1) end
+    if dir == 'j' then
+      idx = math.min(idx + 1, #targs)
+    else
+      idx = math.max(idx - 1, 1)
+    end
     nwin_sc(win, { targs[idx], 0 })
     vcmd('normal! zt')
   end
@@ -114,19 +119,33 @@ function M.open_window(lines, title, cfg)
     local ok, snacks = pcall(srequire, 'snacks')
     if ok then
       local win = snacks.win({
-        text = lines, width = cfg.window.width, height = cfg.window.height,
-        border = cfg.window.border, title = title, title_pos = 'center',
+        text = lines,
+        width = cfg.window.width,
+        height = cfg.window.height,
+        border = cfg.window.border,
+        title = title,
+        title_pos = 'center',
         bo = { filetype = 'markdown', buftype = 'nofile', swapfile = false },
-        wo = { wrap = true, conceallevel = 2, cursorline = true, number = false,
-               relativenumber = false, signcolumn = 'no', statuscolumn = '',
-               foldcolumn = '0', spell = false, list = false },
+        wo = {
+          wrap = true,
+          conceallevel = 2,
+          cursorline = true,
+          number = false,
+          relativenumber = false,
+          signcolumn = 'no',
+          statuscolumn = '',
+          foldcolumn = '0',
+          spell = false,
+          list = false
+        },
         keys = { q = 'close', ['<Esc>'] = 'close' }
       })
       if win and win.buf and nbuf_iv(win.buf) then
         vbo[win.buf].modifiable = false
         setup_budoux(win.buf, cfg)
         setup_nav(win.buf, win.win, lines)
-        napi_ea('User', { pattern = 'JishoWindowOpened', modeline = false, data = { buf = win.buf, win = win.win } })
+        napi_ea('User',
+          { pattern = 'JishoWindowOpened', modeline = false, data = { buf = win.buf, win = win.win } })
       end
       return
     end
@@ -137,8 +156,18 @@ function M.open_window(lines, title, cfg)
   local wh = mfloor(vo.lines * cfg.window.height)
   local r = mfloor((vo.lines - wh) / 2)
   local c = mfloor((vo.columns - ww) / 2)
-  local win = nwin_op(buf, true, { relative = 'editor', width = ww, height = wh, row = r, col = c,
-    border = cfg.window.border, title = title, title_pos = 'center', style = 'minimal', zindex = 50 })
+  local win = nwin_op(buf, true, {
+    relative = 'editor',
+    width = ww,
+    height = wh,
+    row = r,
+    col = c,
+    border = cfg.window.border,
+    title = title,
+    title_pos = 'center',
+    style = 'minimal',
+    zindex = 50
+  })
   vbo[buf].filetype = 'markdown'
   vbo[buf].modifiable = false
   vbo[buf].bufhidden = 'wipe'
@@ -157,7 +186,8 @@ function M.open_window(lines, title, cfg)
   vkmap('n', '<Esc>', close, { buf = buf, nowait = true, silent = true })
   setup_budoux(buf, cfg)
   setup_nav(buf, win, lines)
-  napi_ea('User', { pattern = 'JishoWindowOpened', modeline = false, data = { buf = buf, win = win } })
+  napi_ea('User',
+    { pattern = 'JishoWindowOpened', modeline = false, data = { buf = buf, win = win } })
 end
 
 return M

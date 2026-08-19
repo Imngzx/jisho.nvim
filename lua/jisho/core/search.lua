@@ -69,7 +69,8 @@ function M.search(w, cfg)
   local now = otime()
   if cached and (now - cached.timestamp) < c.CACHE_TTL then
     vsched(function()
-      vnotif('✓ Query successful (cached): ' .. w, vlog.INFO, { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
+      vnotif('✓ Query successful (cached): ' .. w, vlog.INFO,
+        { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
       require('jisho.ui').open_window(cached.lines, cached.title, cfg)
     end)
     c.add_hist(w, now)
@@ -88,13 +89,15 @@ function M.search(w, cfg)
       proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, err, res and res.body)
     end)
   else
-    vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true }, function(obj)
-      if obj.code ~= 0 or not obj.stdout then
-        proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, 'cURL Code: ' .. tostring(obj.code), nil)
-      else
-        proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, nil, obj.stdout)
-      end
-    end)
+    vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true },
+      function(obj)
+        if obj.code ~= 0 or not obj.stdout then
+          proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs,
+            'cURL Code: ' .. tostring(obj.code), nil)
+        else
+          proc_resp(w, cfg, c.in_flight[w] and c.in_flight[w].callbacks or cbs, nil, obj.stdout)
+        end
+      end)
   end
 end
 
