@@ -102,6 +102,7 @@ local function setup_nav(buf, win, navl)
     if dir == 'j' then idx = math.min(idx + 1, #targs)
     else idx = math.max(idx - 1, 1) end
     nwin_sc(win, { targs[idx], 0 })
+    vcmd('normal! zt')
   end
   vkmap('n', 'j', function() nav('j') end, { buf = buf, silent = true, desc = 'Next sense/entry' })
   vkmap('n', 'k', function() nav('k') end, { buf = buf, silent = true, desc = 'Prev sense/entry' })
