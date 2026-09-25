@@ -9,7 +9,7 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 > [!WARNING]
 > This plugin requires latest 0.13 nightly
 
-![Preview Image](https://github.com/user-attachments/assets/42d4765c-5d40-4d85-ba91-49d50e5453f9)
+![Preview Image](https://github.com/user-attachments/assets/b5414cfb-b212-40b6-8171-2e96f467a75f)
 
 ## Layout Previews
 
