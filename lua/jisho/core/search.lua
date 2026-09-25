@@ -42,21 +42,23 @@ local function request(w)
   local url = 'https://jisho.org/api/v1/search/words'
   if vnet_req then
     return vasync_await(function(done)
-      vnet_req(url .. '?keyword=' .. c.urlencode(w), { retry = 3, verbose = false }, function(err, res)
-        vsched(function() done(err, res and res.body) end)
-      end)
+      vnet_req(url .. '?keyword=' .. c.urlencode(w), { retry = 3, verbose = false },
+        function(err, res)
+          vsched(function() done(err, res and res.body) end)
+        end)
     end)
   end
   return vasync_await(function(done)
-    vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true }, function(obj)
-      vsched(function()
-        if obj.code ~= 0 or not obj.stdout then
-          done('cURL Code: ' .. tostring(obj.code), nil)
-        else
-          done(nil, obj.stdout)
-        end
+    vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true },
+      function(obj)
+        vsched(function()
+          if obj.code ~= 0 or not obj.stdout then
+            done('cURL Code: ' .. tostring(obj.code), nil)
+          else
+            done(nil, obj.stdout)
+          end
+        end)
       end)
-    end)
   end)
 end
 
