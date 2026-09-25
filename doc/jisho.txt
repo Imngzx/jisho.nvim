@@ -1,0 +1,217 @@
+*jisho.txt*   jisho.nvim - Japanese Dictionary Lookup
+
+==============================================================================
+1. Introduction                                    *jisho-introduction*
+
+jisho.nvim is a blazing fast, async Japanese dictionary plugin for Neovim
+powered by Jisho.org API. It provides instant word lookup with beautiful
+Markdown rendering, persistent caching, request deduplication, and search
+history.
+
+Requires: Neovim >= 0.13.0 (uses |vim.async|, |vim.system|, |vim.net.request|)
+
+Features:
+- Async native HTTP via |vim.net.request| with automatic retries
+- Curl fallback for environments without native HTTP
+- Persistent disk cache (~/.cache/nvim/jisho_cache.json) with 5-minute TTL
+- In-flight request deduplication prevents duplicate API calls
+- Search history with timestamps (:JishoHistory)
+- Beautiful Markdown rendering with sense navigation
+- Optional snacks.nvim integration for picker UI
+- Optional budoux.lua for Japanese word segmentation (w/b keys)
+
+==============================================================================
+2. Installation                                    *jisho-installation*
+
+Using Neovim's built-in package manager:
+
+    vim.pack.add('https://github.com/Imngzx/jisho.nvim')
+
+Or clone manually into your packpath:
+
+    git clone https://github.com/Imngzx/jisho.nvim \
+      ~/.local/share/nvim/site/pack/plugins/start/jisho.nvim
+
+Optional dependencies:
+- snacks.nvim (https://github.com/folke/snacks.nvim) - enhanced UI
+- budoux.lua (https://github.com/atusy/budoux.lua) - Japanese word jumps
+- render-markdown.nvim (https://github.com/MeanderingProgrammer/render-markdown.nvim) - markdown rendering
+
+==============================================================================
+3. Setup                                           *jisho-setup*
+
+Basic setup (all defaults):
+
+    require('jisho').setup()
+
+Full configuration with defaults:
+
+    require('jisho').setup({
+      -- Use snacks.nvim for floating window (auto-detected)
+      use_snacks = pcall(require, 'snacks'),
+
+      -- Use budoux for Japanese word segmentation (auto-detected)
+      use_budoux = pcall(require, 'budoux'),
+
+      -- Layout style: 'compact' | 'spacious' | 'super_spacious'
+      layout = 'spacious',
+
+      -- Floating window configuration
+      window = {
+        width  = 0.6,    -- float width as ratio of editor width (0.0-1.0)
+        height = 0.7,    -- float height as ratio of editor height (0.0-1.0)
+        border = 'rounded', -- 'none'|'single'|'double'|'rounded'|'solid'|'shadow'
+      },
+    })
+
+==============================================================================
+4. Usage                                           *jisho-usage*
+
+Commands:
+    :Jisho [word]           Search for word (uses <cword> if omitted)
+    :JishoHistory           Open search history window
+    :JishoDedupe <subcmd>   Manage deduplication:
+          inflight          Show in-flight requests
+          clear-inflight    Clear all in-flight requests
+          clear-cache       Clear search cache
+          refresh [word]    Force refresh (bypass cache)
+    :JishoRefresh [word]    Shortcut for :JishoDedupe refresh
+
+Lua API:
+    require('jisho').search(word)   -- Search for word (fire-and-forget)
+    require('jisho').history()      -- Open history window
+    require('jisho').setup(opts)    -- Configure plugin
+
+Example keymaps:
+
+    vim.keymap.set('n', '<leader>j', function()
+      require('jisho').search()
+    end, { desc = 'Jisho lookup' })
+
+    vim.keymap.set('n', '<leader>J', function()
+      require('jisho').history()
+    end, { desc = 'Jisho history' })
+
+==============================================================================
+5. Result Window                                   *jisho-result-window*
+
+The result window displays parsed Jisho.org data as Markdown:
+
+- Main word with reading, common tag, JLPT level
+- Other forms (multiple Japanese entries)
+- Tags (wanikani, jlpt, etc.)
+- Numbered senses with:
+    - Parts of speech
+    - English definitions
+    - Usage notes (info)
+    - See also references
+    - Sense tags
+
+Navigation:
+    j / k          Jump between senses/entries
+    w / b          Budoux Japanese word jumps (requires budoux.lua)
+    q / <Esc>      Close window
+
+==============================================================================
+6. History Window                                  *jisho-history*
+
+:JishoHistory opens a floating window with search history.
+Entries show index, word, and timestamp.
+
+With snacks.nvim:
+- Uses snacks.picker with fuzzy search
+- <CR> to re-search selected entry
+
+Native fallback:
+- Markdown window with numbered entries
+- <CR> on entry line to re-search
+- q / <Esc> to close
+
+==============================================================================
+7. Caching & Deduplication                         *jisho-cache*
+
+In-memory cache:
+- Key: normalized word (lowercase, trimmed, kana-normalized)
+- Value: pre-rendered lines, title, timestamp
+- TTL: 5 minutes (300 seconds)
+
+Persistent disk cache:
+- Location: ~/.cache/nvim/jisho_cache.json
+- Survives Neovim restarts
+- Versioned for migration
+
+In-flight deduplication:
+- Multiple :Jisho for same word attach to single HTTP request
+- All waiters receive results when request completes
+- Inspect with :JishoDedupe inflight
+- Clear with :JishoDedupe clear-inflight
+
+==============================================================================
+8. Layout Styles                                   *jisho-layouts*
+
+    compact         Minimal spacing between entries
+    spacious        (default) Balanced spacing with blank lines
+    super_spacious  Extra generous spacing
+
+Configure via setup() or let g:jisho_layout = 'compact'
+
+==============================================================================
+9. Architecture                                    *jisho-architecture*
+
+Module map:
+    lua/jisho/init.lua        Public API, commands
+    lua/jisho/core/init.lua   Core exports
+    lua/jisho/core/cache.lua  State: cache, history, spinner, URL encoding
+    lua/jisho/core/search.lua HTTP flow, dedup, response processing
+    lua/jisho/core/response.lua  Result formatting (build_lines)
+    lua/jisho/core/history.lua  :JishoHistory command
+    lua/jisho/core/dedupe.lua   Cache key memo, in-flight inspection
+    lua/jisho/ui.lua          Window rendering, navigation
+    lua/jisho/style.lua       Layout functions
+
+Async flow:
+    M.search() → cache check → in-flight check → vim.async.run()
+      → await vim.net.request() / vim.system(curl)
+      → parse JSON → build lines → cache → callbacks → stop spinner
+
+Spinner uses |vim.async.sleep| with epoch-based cancellation.
+
+==============================================================================
+10. Performance                                    *jisho-performance*
+
+- Startup: ~1.8 ms (lazy vim.async load)
+- First search: API-bound (~1.3s Jisho.org latency)
+- Cache hit: ~0.05 ms
+- Memory: ~200 KB baseline + cache entries
+- GC: No libuv timer churn (async coroutine only)
+
+==============================================================================
+11. Troubleshooting                                *jisho-troubleshooting*
+
+Search fails silently:
+  - Check :messages for vim.notify output
+  - Verify internet connectivity
+  - Check curl is in PATH (fallback)
+
+UI doesn't open:
+  - Ensure snacks.nvim is installed if use_snacks=true
+  - Check nvim_open_win validity
+
+Budoux jumps don't work:
+  - Install budoux.lua
+  - Line must contain Japanese characters
+
+Cache not persisting:
+  - Check ~/.cache/nvim/jisho_cache.json writable
+  - Verify save_cache() called
+
+History empty:
+  - Ensure add_hist() called (after successful search)
+
+==============================================================================
+12. License                                        *jisho-license*
+
+MIT License - see LICENSE file.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
