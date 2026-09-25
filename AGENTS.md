@@ -17,7 +17,7 @@
 | **Style Module** | `style.lua` (layouts) |
 | **Install Location** | `vim.pack.add('https://github.com/Imngzx/jisho.nvim')` |
 | **Config Style** | Single `setup(opts)` with optional `use_snacks`, `use_budoux`, `layout`, `window` |
-| **Requirements** | Neovim >= 0.10 (uses `vim.system`, `vim.net.request`), `curl` fallback |
+| **Requirements** | Neovim >= 0.13 (uses `vim.async`, `vim.system`, `vim.net.request`), `curl` fallback |
 
 ---
 
@@ -25,13 +25,13 @@
 
 | Tool | Path | Purpose |
 |------|------|---------|
-| `nvim` | System `nvim` (0.10+) | Headless testing: `nvim --headless -c "..." -c "qall"` |
+| `nvim` | System `nvim` (0.13+) | Headless testing: `nvim --headless -c "..." -c "qall"` |
 | `lua` | Embedded in `nvim` | All Lua execution via `nvim --headless -c "lua ..."` |
 | `rg` (ripgrep) | System `rg` | Fast code search |
 | `git` | System `git` | Version control |
 | `bash` / `fish` | Standard | Shell commands, pipelines |
 | `lua-language-server` | `/usr/bin/lua-language-server` (pacman) | LSP diagnostics: `lua-language-server --check=FILE` |
-| `curl` | System `curl` | HTTP fallback for Neovim < 0.12 |
+| `curl` | System `curl` | HTTP fallback transport |
 
 ### Benchmark Command Template
 
@@ -80,7 +80,7 @@ M.search(word, config)
   → Check in-flight deduplication
   → Start spinner (vim.notify with Braille animation)
   → HTTP request:
-      vim.net.request (Neovim 0.10+)  -- native, async, retry=3
+      vim.net.request (Neovim 0.13+)  -- native, async, retry=3
       OR vim.system('curl') fallback -- subprocess
   → process_response(err, json_str)
     → pcall(vim_json_decode)
@@ -479,6 +479,62 @@ c.save_cache()  -- scheduled, writes to ~/.cache/nvim/jisho_cache.json
 ---
 
 ## 10. Emergency: Restore Original Files
+
+```bash
+# From git HEAD
+cd /home/alice/Projects/code/lua/jisho.nvim
+git show HEAD:lua/jisho/core/cache.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/cache.lua
+git show HEAD:lua/jisho/core/search.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/search.lua
+git show HEAD:lua/jisho/core/response.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/response.lua
+git show HEAD:lua/jisho/core/history.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/history.lua
+git show HEAD:lua/jisho/core/dedupe.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/core/dedupe.lua
+git show HEAD:lua/jisho/ui.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/ui.lua
+git show HEAD:lua/jisho/init.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/init.lua
+git show HEAD:lua/jisho/style.lua > ~/.local/share/nvim/site/pack/core/opt/jisho.nvim/lua/jisho/style.lua
+```
+
+---
+
+*Generated 2026-08-18. Updated with LuaJIT low-level optimization patterns, modular core architecture, and all new features.*
+
+---
+## 11. `vim.async` Refactor Rules (Neovim 0.13+)
+
+> Detailed, verified reference: `note/knowledge/vim-async-api.md`.
+
+`vim.async.run(fn)` creates a cooperative task. Use `vim.async.await(fn)` only inside that task and use `vim.async.sleep(ms)` for spinner timing. Localize `vasync_run`, `vasync_await`, and `vasync_sleep` at module scope.
+
+### Callback adapters
+
+`vim.async.await(argc, fn, ...)` is safe for callbacks without their own error-first slot, such as:
+```lua
+local err, stat = vasync_await(2, vim.uv.fs_stat, path)
+```
+
+Do **not** use positional `await`/`wrap` with `vim.net.request` or `vim.system`: both supply their own callback result shape, and `vim.async` cleanup closes returned handles. Adapt them explicitly, schedule the callback result, and do not return the request/job handle:
+```lua
+local err, body = vasync_await(function(done)
+  vnet_req(url, opts, function(request_err, res)
+    vsched(function() done(request_err, res and res.body) end)
+  end)
+end)
+```
+
+### Search invariants
+
+1. Cache lookup and `in_flight[word]` deduplication happen before `vasync_run`.
+2. An entry is `{ callbacks, task }`; completion clears it only when it is still the same entry.
+3. Schedule callback continuations, `vim.notify`, and UI work from request/system callbacks.
+4. The spinner uses a monotonically increasing epoch and `vasync_sleep(80)`; only its matching request may stop it.
+5. Preserve native `vim.net.request` and curl fallback until the supported Neovim version changes.
+
+### Required smoke coverage
+
+Run headless native request, curl fallback, cache hit, and duplicate-search scenarios after modifying this flow.
+
+---
+
+## 9. Emergency: Restore Original Files
 
 ```bash
 # From git HEAD

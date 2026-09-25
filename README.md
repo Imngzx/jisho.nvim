@@ -25,7 +25,7 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ## ✨ Features
 
-- **Blazing Fast & Async:** Built on Neovim 0.10+ native `vim.system()` + `vim.net.request()` with automatic retries. Never blocks your UI.
+- **Blazing Fast & Async:** Built on Neovim 0.13+ `vim.async`, native `vim.system()`, and `vim.net.request()` with automatic retries. Never blocks your UI.
 - **Zero Dependencies:** Works out of the box. No external plugins required. (optional: snacks.nvim, budoux.lua)
 - **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown with other forms, tags, sense info, see-also, and sense tags.
 - **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
@@ -201,8 +201,8 @@ If you configured the keymaps as shown above:
 
 ## 🤝 Requirements
 
-- Neovim >= 0.10.0 (uses `vim.system`, `vim.net.request`)
-- `curl` available in your system's PATH (fallback for older Neovim versions)
+- Neovim >= 0.13.0 (uses `vim.async`, `vim.system`, and `vim.net.request`)
+- `curl` available in your system's PATH (fallback HTTP transport)
 - [Budoux plugin](https://github.com/atusy/budoux.lua) *optional - for Japanese word segmentation*
 - [snacks.nvim](https://github.com/folke/snacks.nvim) *recommended for best UI experience*
 - [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) *recommended for best markdown rendering*

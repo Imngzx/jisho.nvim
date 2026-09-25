@@ -6,7 +6,6 @@ local sgsub = string.gsub
 local schar = string.char
 local pcall = pcall
 local otime = os.time
-local uv = vim.uv
 local iopen = io.open
 local vfn = vim.fn
 local vfsn = vim.fs.normalize
@@ -15,6 +14,16 @@ local vsched = vim.schedule
 local vlog = vim.log.levels
 local vjson_dec = vim.json.decode
 local vjson_enc = vim.json.encode
+
+local vasync_run
+local vasync_sleep
+
+local function ensure_async()
+  if not vasync_run then
+    vasync_run = vim.async.run
+    vasync_sleep = vim.async.sleep
+  end
+end
 
 local _url_map = {}
 for i = 0, 255 do
@@ -45,10 +54,9 @@ local CACHE_VER = 1
 local in_flight = {}
 
 local spin_frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
-local spin_timer = nil
+local spin_task = nil
 local spin_id = 'jisho_req'
-local spin_word = nil
-local spin_idx = 1
+local spin_epoch = 0
 
 local hist = {}
 local MAX_HIST = 100
@@ -101,25 +109,29 @@ local function add_hist(w, ts)
 end
 
 local function start_spin(w)
-  spin_word = w
-  spin_idx = 1
-  spin_timer = uv.new_timer()
-  spin_timer:start(0, 80, function()
-    spin_idx = (spin_idx % 10) + 1
-    vsched(function()
-      vnotif(spin_frames[spin_idx] .. ' Searching: ' .. spin_word, vlog.INFO,
+  ensure_async()
+  spin_epoch = spin_epoch + 1
+  local epoch = spin_epoch
+  local task = vasync_run(function()
+    local spin_idx = 1
+    while epoch == spin_epoch do
+      vnotif(spin_frames[spin_idx] .. ' Searching: ' .. w, vlog.INFO,
         { title = 'Jisho.org', id = spin_id })
-    end)
+      spin_idx = (spin_idx % 10) + 1
+      vasync_sleep(80)
+    end
   end)
+  spin_task = task
+  task:on_complete(function()
+    if spin_task == task then spin_task = nil end
+  end)
+  return epoch
 end
 
-local function stop_spin(ok, w, err)
-  if spin_timer then
-    spin_timer:stop()
-    spin_timer:close()
-    spin_timer = nil
+local function stop_spin(ok, w, err, epoch)
+  if epoch == spin_epoch then
+    spin_epoch = spin_epoch + 1
   end
-  spin_word = nil
   vsched(function()
     if ok then
       vnotif('✓ Query successful: ' .. w, vlog.INFO,
@@ -137,10 +149,7 @@ M.CACHE_FILE = CACHE_FILE
 M.CACHE_VER = CACHE_VER
 M.in_flight = in_flight
 M.spin_frames = spin_frames
-M.spin_timer = spin_timer
 M.spin_id = spin_id
-M.spin_word = spin_word
-M.spin_idx = spin_idx
 M.hist = hist
 M.MAX_HIST = MAX_HIST
 M.urlencode = urlencode
