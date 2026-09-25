@@ -19,9 +19,10 @@ function M.history(config)
     local ok, snacks = pcall(require, 'snacks')
     if ok and snacks.picker then
       local items = {}
-      for i, entry in ipairs(cache.hist) do
+      for i = 1, #cache.hist do
+        local entry = cache.hist[i]
         local time_str = os_date('%Y-%m-%d %H:%M', entry.timestamp)
-        items[#items + 1] = {
+        items[i] = {
           text = string_format('%d. %s (%s)', i, entry.word, time_str),
           word = entry.word,
           idx = i,
@@ -51,7 +52,8 @@ function M.history(config)
 
   -- Fallback: native window
   local lines = { '# Search History', '' }
-  for i, entry in ipairs(cache.hist) do
+  for i = 1, #cache.hist do
+    local entry = cache.hist[i]
     local time_str = os_date('%Y-%m-%d %H:%M', entry.timestamp)
     lines[#lines + 1] = string_format('%d. **%s** *(%s)*', i, entry.word, time_str)
   end
