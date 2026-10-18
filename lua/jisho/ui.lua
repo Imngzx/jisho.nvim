@@ -1,5 +1,5 @@
 local M = {}
--- 🇯🇵
+
 local pcall = pcall
 local mfloor = math.floor
 local sfind = string.find
