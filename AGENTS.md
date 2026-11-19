@@ -20,6 +20,7 @@
 | `lua/jisho/core/dedupe.lua` | `:JishoDedupe` / `:JishoRefresh` handlers, kana-normalized key lookup |
 | `lua/jisho/ui.lua` | Result window (snacks.win or native float), `j`/`k` navigation, Budoux `w`/`b` |
 | `lua/jisho/style.lua` | Layout spacers: `compact`, `spacious`, `super_spacious` |
+| `test/` | Offline specs, `run.sh` runner, `helpers.lua` stubs |
 
 How the pieces fit together: `ARCHITECTURE.md`. User docs: `README.md`,
 `doc/jisho.txt`.
@@ -79,29 +80,48 @@ a fix lives in code comments. Keep any working plan in an untracked file
 
 ## 4. Development loop
 
-Test the working tree, not the installed copy, and point the cache at a
-temp dir so runs never touch the real `~/.cache/nvim/jisho_cache.json`:
+### Test
 
 ```bash
-X=$(mktemp -d)
-J="env XDG_CACHE_HOME=$X nvim --headless -u NONE --cmd 'set rtp^=.'"
-WAIT="vim.wait(15000, function() return #vim.api.nvim_list_wins() > 1 end); print(#vim.api.nvim_list_wins())"
-
-# native request (prints 2 when the window opened)
-eval $J -c "\"lua require('jisho').setup({use_snacks=false}); require('jisho').search('食べる'); $WAIT\"" -c qall
-# curl fallback
-eval $J -c "\"lua vim.net=nil\"" -c "\"lua require('jisho').setup({use_snacks=false}); require('jisho').search('猫'); $WAIT\"" -c qall
-rm -rf "$X"
+test/run.sh                        # every spec, offline
+test/run.sh test/search_spec.lua   # one or more specs
 ```
 
-After changing the search/async flow, also cover a **cache hit** (search the
-same word twice in one process) and a **duplicate search** (two `search()`
-calls before the first returns → one request, two windows).
+Each spec runs in its own `nvim -u NONE` with the working tree on the
+runtimepath and a throwaway `XDG_CACHE_HOME`, so the real
+`~/.cache/nvim/jisho_cache.json` is never touched. `test/helpers.lua` stubs
+the network: `h.stub_net()` replaces `vim.net.request`, `h.stub_curl()`
+hides it and fakes `vim.system`. Install stubs **before** requiring
+`jisho` (the modules copy these functions into locals at load). Hide
+`vim.net` with `false`, never `nil`: the `vim` metatable reloads a nil
+`vim.net` on the next access.
+
+| Spec | Covers |
+|---|---|
+| `search_spec` | rendering, cache hit, in-flight dedupe, disk persistence, history |
+| `errors_spec` | transport error, no results, retry after failure |
+| `curl_spec` | `curl` fallback |
+| `dedupe_spec` | kana-normalized key, `clear-cache`, `:JishoRefresh` |
+| `docs_spec` | help links resolve, `doc/tags` is current |
+
+**Mutation-check new regression tests:** revert the fix, confirm the test
+fails, restore the fix.
+
+A live check against Jisho.org (network):
+
+```bash
+X=$(mktemp -d); XDG_CACHE_HOME=$X nvim --headless -u NONE --cmd 'set rtp^=.' \
+  -c "lua require('jisho').setup({use_snacks=false}); require('jisho').search('食べる'); vim.wait(15000, function() return #vim.api.nvim_list_wins() > 1 end); print(#vim.api.nvim_list_wins())" \
+  -c qall; rm -rf "$X"   # prints 2 when the window opened
+```
 
 ### Diagnose
 
+Run from the repo root: `--check=lua/jisho` makes that folder the
+workspace, misses `.luarc.json`, and reports `vim` as an undefined global.
+
 ```bash
-lua-language-server --check=lua/jisho
+lua-language-server --check=.
 ```
 
 ### Benchmark (performance changes only)
