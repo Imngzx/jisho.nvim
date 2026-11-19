@@ -35,7 +35,7 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 - **Persistent Cache:** Results are kept for 5 minutes, also across restarts (`stdpath('cache')/jisho_cache.json`).
 - **Request Deduplication:** Searching a word that is already being fetched does not send a second request.
 - **Search History:** `:JishoHistory`, `<CR>` to search again.
-- **Navigation:** `j`/`k` jump between entries and senses, `w`/`b` Budoux-aware Japanese word jumps.
+- **Navigation:** `j`/`k` jump between entries and senses, `w`/`b`/`e`/`ge` move by Budoux phrase in Japanese text, like Vim elsewhere.
 - **Vibe Coded:** Minimalist code, extreme performance, examined by author.
 
 ## 📦 Installation
@@ -149,7 +149,7 @@ With the keymaps above, `<leader>tj` looks up the word under the cursor (normal 
 | Key | Action |
 |-----|--------|
 | `j` / `k` | Jump between senses/entries |
-| `w` / `b` | Budoux-aware Japanese word jumps |
+| `w` `b` `e` `ge` | Word motions; Budoux phrases in Japanese text |
 | `q` / `<Esc>` | Close window |
 | `<CR>` (in history) | Re-search selected entry |
 

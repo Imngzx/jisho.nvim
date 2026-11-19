@@ -97,8 +97,15 @@ tags, other forms, tags, and numbered senses (parts of speech, definitions,
 usage notes, see also, sense tags).
 
     j / k          Next / previous entry or sense
-    w / b          Budoux word jumps (needs budoux.lua and `use_budoux`)
+    w / b / e / ge Word motions, by Budoux phrase in Japanese text
     q / <Esc>      Close
+
+                                                              *jisho-budoux*
+With budoux.lua installed and `use_budoux` set, `w`, `b`, `e` and `ge` step
+through Japanese text one phrase at a time (今日は | 天気が | いいので)
+instead of at every change between kanji and kana. Everywhere else they
+stop exactly where the built-in motions do. They take a count and work in
+Visual mode and after an operator (`yw`, `ye` yank a phrase).
 
 ==============================================================================
 6. History                                                   *jisho-history*
@@ -143,8 +150,7 @@ An unknown name falls back to `spacious`.
 
 Nothing happens       Check |:messages|, your connection, and that `curl`
                       is in PATH if |vim.net.request| is missing.
-`w` / `b` are plain   budoux.lua not installed, `use_budoux = false`, or
-                      the line has no Japanese text.
+`w` / `e` are plain   budoux.lua not installed or `use_budoux = false`.
 Stale result          |:JishoRefresh| {word}.
 
 ==============================================================================

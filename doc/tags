@@ -4,6 +4,7 @@
 :JishoRefresh	jisho.txt	/*:JishoRefresh*
 JishoWindowOpened	jisho.txt	/*JishoWindowOpened*
 jisho-api	jisho.txt	/*jisho-api*
+jisho-budoux	jisho.txt	/*jisho-budoux*
 jisho-cache	jisho.txt	/*jisho-cache*
 jisho-contents	jisho.txt	/*jisho-contents*
 jisho-events	jisho.txt	/*jisho-events*

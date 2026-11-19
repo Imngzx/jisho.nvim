@@ -76,10 +76,21 @@ never stop a newer search's spinner.
   `setup_nav()`, then `User JishoWindowOpened` with `data = { buf, win }`.
 
 `setup_nav()` collects the line numbers of `## ` (entry) and `- **N.**`
-(sense) lines and maps `j`/`k` to jump between them. `setup_budoux()` (only
-when `use_budoux` and budoux loads) parses a line's segment boundaries once
-per buffer line, invalidated by `nvim_buf_attach` `on_lines`; lines with no
-non-ASCII byte fall back to `normal! w` / `normal! b`.
+(sense) lines and maps `j`/`k` to jump between them.
+
+`setup_budoux()` (only when `use_budoux` and budoux loads) maps `w`, `b`,
+`e`, `ge` in Normal, Visual and Operator-pending mode. Per line,
+`line_words()` lists word starts and ends using Vim's own classes
+(`charclass()`: blank, punctuation, word, emoji, hiragana, katakana, CJK), so
+non-Japanese text stops exactly where the built-in motions do. Inside a run
+of Japanese characters (non-ASCII punctuation like 、。「」 included) the class
+changes are replaced by Budoux boundaries. Results are cached per buffer
+line, reset by `nvim_buf_attach` `on_lines` and dropped `on_detach`.
+
+`step()` mirrors Vim's line crossing: an empty line is a stop for `w`/`b`/
+`ge` but not `e`, a blank-only line never is; at the buffer edge `w` still
+moves to the last char and `ge` to the first. Operator-pending `e`/`ge` are
+mapped as `v<Cmd>…` so they are inclusive, like Vim's.
 
 ## Persistence
 

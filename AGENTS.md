@@ -102,6 +102,7 @@ hides it and fakes `vim.system`. Install stubs **before** requiring
 | `errors_spec` | transport error, no results, retry after failure |
 | `curl_spec` | `curl` fallback |
 | `dedupe_spec` | kana-normalized key, `clear-cache`, `:JishoRefresh` |
+| `budoux_spec` | `w`/`b`/`e`/`ge`: phrase stops, parity with built-in motions on non-Japanese text, counts, operator/visual, cache freed (skips without budoux.lua) |
 | `docs_spec` | help links resolve, `doc/tags` is current |
 
 **Mutation-check new regression tests:** revert the fix, confirm the test
