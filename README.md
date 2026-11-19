@@ -40,14 +40,14 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ## 📦 Installation
 
-One keymap covers both modes: the word under the cursor in Normal mode, the selection in Visual mode.
+One keymap covers both modes: `:Jisho` looks up the word under the cursor in Normal mode and the selection in Visual mode.
 
 ### Method 1: Native `vim.pack`
 
 ```lua
 vim.pack.add({ 'https://github.com/Imngzx/jisho.nvim' })
 
-vim.keymap.set({ 'n', 'x' }, '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho' })
+vim.keymap.set({ 'n', 'x' }, '<leader>tj', '<Cmd>Jisho<CR>', { desc = 'Jisho' })
 ```
 
 ### Method 2: [lazy.nvim](https://github.com/folke/lazy.nvim)
@@ -57,7 +57,7 @@ vim.keymap.set({ 'n', 'x' }, '<leader>tj', function() require('jisho').search() 
   'Imngzx/jisho.nvim',
   cmd = { 'Jisho', 'JishoHistory' },
   keys = {
-    { '<leader>tj', function() require('jisho').search() end, mode = { 'n', 'x' }, desc = 'Jisho' },
+    { '<leader>tj', '<Cmd>Jisho<CR>', mode = { 'n', 'x' }, desc = 'Jisho' },
   },
   opts = {},
 }
@@ -71,7 +71,7 @@ require('resonance').load({
   dependencies = { 'https://github.com/atusy/budoux.lua' }, -- optional
   cmd = { 'Jisho', 'JishoHistory' },
   keys = {
-    { { 'n', 'x' }, '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho' } },
+    { { 'n', 'x' }, '<leader>tj', '<Cmd>Jisho<CR>', { desc = 'Jisho' } },
   },
 })
 ```
@@ -102,9 +102,9 @@ require('jisho').setup({
 ```
 
 > [!TIP]
-> You can add it into which-key
+> The `desc` shows up in which-key.
 
-Here's my [jisho](https://github.com/Imngzx/nvim-config-rice-.ver-/blob/nvim-native/lua/plugins/jisho.lua) + [my budoux and which-key](https://github.com/Imngzx/nvim-config-rice-.ver-/blob/nvim-native/lua/plugins/jisho.lua) configuration file for Neovim
+My own setup: [jisho.lua](https://github.com/Imngzx/stellar-vim/blob/nvim-native/lua/plugins/jisho.lua) in [Stellar:Vim](https://github.com/Imngzx/stellar-vim).
 
 ## 🚀 Usage
 
@@ -143,7 +143,8 @@ While a search runs, its status shows as an animated spinner notification if you
 | `j` / `k` | Jump between senses/entries |
 | `w` `b` `e` `ge` | Word motions; Budoux phrases in Japanese text |
 | `q` / `<Esc>` | Close window |
-| `<CR>` (in history) | Re-search selected entry |
+
+In `:JishoHistory`, `<CR>` searches the selected entry again.
 
 ## 🤝 Requirements
 

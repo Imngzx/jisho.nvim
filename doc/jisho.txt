@@ -34,9 +34,7 @@ Optional:
 
 >lua
     vim.pack.add({ 'https://github.com/Imngzx/jisho.nvim' })
-    vim.keymap.set({ 'n', 'x' }, '<leader>tj', function()
-      require('jisho').search()
-    end, { desc = 'Jisho' })
+    vim.keymap.set({ 'n', 'x' }, '<leader>tj', '<Cmd>Jisho<CR>', { desc = 'Jisho' })
 <
 That is all: the commands exist right away, and nothing is loaded until the
 first lookup. See the README for lazy.nvim and resonance.nvim specs.
@@ -68,7 +66,8 @@ All options and their defaults:
 4. Usage                                                       *jisho-usage*
 
 Commands:                                                  *:Jisho*
-    :Jisho [word]           Look up {word}, or the word under the cursor.
+    :Jisho [word]           Look up {word}; without one, the selection in
+                            Visual mode, else the word under the cursor.
     :'<,'>Jisho             Look up the last selection.
     :{range}Jisho           Look up the text of those lines.
                                                            *:JishoHistory*
@@ -89,8 +88,14 @@ Lua API:                                                       *jisho-api*
     require('jisho').refresh(word)  -- bypass the cache
     require('jisho').history()
 <
-Because `search()` reads the selection itself, one mapping serves Normal and
-Visual mode (see |jisho-installation|).
+`:Jisho` without a word, and `search()` without one, read the selection in
+Visual mode and the word under the cursor otherwise, so one mapping serves
+both modes (see |jisho-installation|). With a function:
+>lua
+    vim.keymap.set({ 'n', 'x' }, '<leader>tj', function()
+      require('jisho').search()
+    end)
+<
 
                                                             *jisho-progress*
 While a search runs, its status is shown one of two ways (`notify` option):

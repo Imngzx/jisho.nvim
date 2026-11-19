@@ -116,7 +116,7 @@ specs that check the progress message pass `notify = false`. Install stubs **bef
 | `progress_spec` | progress message: no `:messages` spam, final status, older search can't close a newer one |
 | `notify_spec` | auto-detection, spinner frames + final notification with a notifier, `notify = false` |
 | `timeout_spec` | hung request killed, entry cleared, word searchable again |
-| `visual_spec` | one `{ 'n', 'x' }` mapping, `:'<,'>Jisho`, `:{range}Jisho` |
+| `visual_spec` | one `{ 'n', 'x' }` mapping (`search()`, `<Cmd>Jisho<CR>`, `:Jisho<CR>`), `:'<,'>Jisho`, `:{range}Jisho` |
 | `plugin_spec` | commands before `require`, everything works without `setup()` |
 | `docs_spec` | help links resolve, `doc/tags` is current |
 

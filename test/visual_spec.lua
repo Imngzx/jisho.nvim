@@ -54,4 +54,25 @@ h.test(':Jisho word ignores the range', function()
   h.eq('猫', got, 'argument')
 end)
 
+h.test("a '<Cmd>Jisho<CR>' mapping covers both modes", function()
+  vim.keymap.set({ 'n', 'x' }, '<F3>', '<Cmd>Jisho<CR>')
+  got = false
+  vim.api.nvim_win_set_cursor(0, { 2, 13 })
+  press('<F3>')
+  h.eq('', got, 'Normal mode: empty, the core uses <cword>')
+  got = nil
+  vim.api.nvim_win_set_cursor(0, { 1, 10 })
+  press('ve<F3>')
+  h.eq('食べる', got, 'Visual mode: the selection')
+  h.eq('n', vim.fn.mode(), 'mode after')
+end)
+
+h.test("a ':Jisho<CR>' mapping covers both modes", function()
+  vim.keymap.set({ 'n', 'x' }, '<F4>', ':Jisho<CR>')
+  got = nil
+  vim.api.nvim_win_set_cursor(0, { 1, 10 })
+  press('ve<F4>')
+  h.eq('食べる', got, "Visual mode becomes :'<,'>Jisho")
+end)
+
 h.finish()
