@@ -28,71 +28,51 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ## ✨ Features
 
-- **Blazing Fast & Async:** Built on Neovim 0.13+ `vim.async`, native `vim.system()`, and `vim.net.request()` with automatic retries. Never blocks your UI.
-- **Zero Dependencies:** Works out of the box. No external plugins required. (optional: snacks.nvim, budoux.lua)
-- **Beautiful Markdown:** Parses dictionary data into clean, readable Markdown with other forms, tags, sense info, see-also, and sense tags.
-- **Smart UI:** Automatically integrates with [snacks.nvim](https://github.com/folke/snacks.nvim) if installed. Falls back to a handcrafted, beautiful native Neovim floating window if not.
-- **Persistent Cache:** Disk cache at `~/.cache/nvim/jisho_cache.json` survives Neovim restarts with 5-minute TTL.
-- **Request Deduplication:** In-flight tracking prevents duplicate API calls for the same word.
-- **Search History:** `:JishoHistory` command with timestamps, Enter to re-search (snacks.picker + native fallback).
-- **Navigation:** `j`/`k` jump between senses/entries, `w`/`b` Budoux-aware Japanese word jumps.
-- **Modern Neovim APIs:** Uses `vim.iter`, `vim.uv`, `vim.bo`/`vim.wo`, `vim.net.request` with retries.
+- **Async:** Built on Neovim 0.13+ `vim.async` and `vim.net.request` (with retries), `curl` as fallback. Never blocks your UI.
+- **Zero Dependencies:** Works out of the box. Optional: [snacks.nvim](https://github.com/folke/snacks.nvim), [budoux.lua](https://github.com/atusy/budoux.lua).
+- **Markdown Results:** Reading, common/JLPT tags, other forms, tags, numbered senses with usage notes and see-also.
+- **Smart UI:** Uses snacks.nvim if installed, otherwise a native floating window.
+- **Persistent Cache:** Results are kept for 5 minutes, also across restarts (`stdpath('cache')/jisho_cache.json`).
+- **Request Deduplication:** Searching a word that is already being fetched does not send a second request.
+- **Search History:** `:JishoHistory`, `<CR>` to search again.
+- **Navigation:** `j`/`k` jump between entries and senses, `w`/`b` Budoux-aware Japanese word jumps.
 - **Vibe Coded:** Minimalist code, extreme performance, examined by author.
 
 ## 📦 Installation
 
-### Method 1: Native `vim.pack` (No plugin manager needed)
-
-You can install this plugin using Neovim's built-in package manager, or just clone it into your `packpath`:
+Every method below uses the same two keymaps:
 
 ```lua
-vim.pack.add('https://github.com/Imngzx/jisho.nvim')
+-- Normal mode: word under the cursor
+local function jisho_cword() require('jisho').search() end
+
+-- Visual mode: the selection
+local function jisho_visual()
+  local text = vim.fn.getregion(vim.fn.getpos('v'), vim.fn.getpos('.'), { type = vim.fn.mode() })
+  vim.api.nvim_feedkeys(vim.keycode('<Esc>'), 'n', false)
+  require('jisho').search(table.concat(text, ' '))
+end
 ```
 
-Then, add the setup and keymaps to your `init.lua`:
+### Method 1: Native `vim.pack`
 
 ```lua
+vim.pack.add({ 'https://github.com/Imngzx/jisho.nvim' })
 require('jisho').setup()
 
--- Setup keymaps
-vim.keymap.set('n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' })
-vim.keymap.set('v', '<leader>tj', function()
-   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
-   vim.schedule(function()
-   local s = vim.api.nvim_buf_get_mark(0, '<')
-   local e = vim.api.nvim_buf_get_mark(0, '>')
-   local lines = vim.fn.getregion({ 0, s[1], s[2] + 1, 0 }, { 0, e[1], e[2] + 1, 0 })
-   require('jisho').search(table.concat(lines, ' '))
-end, { desc = 'Jisho (Selection)' })
+vim.keymap.set('n', '<leader>tj', jisho_cword, { desc = 'Jisho (Word under cursor)' })
+vim.keymap.set('x', '<leader>tj', jisho_visual, { desc = 'Jisho (Selection)' })
 ```
 
 ### Method 2: [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
-  "Imngzx/jisho.nvim",
-  cmd = { "Jisho", "JishoHistory", "JishoDedupe", "JishoRefresh" },
+  'Imngzx/jisho.nvim',
+  cmd = { 'Jisho', 'JishoHistory', 'JishoDedupe', 'JishoRefresh' },
   keys = {
-    {
-      '<leader>tj',
-      function() require('jisho').search() end,
-      mode = 'n',
-      desc = 'Jisho (Word under cursor)',
-    },
-    {
-      '<leader>tj',
-      function()
-        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
-        vim.schedule(function()
-          local s = vim.api.nvim_buf_get_mark(0, '<')
-          local e = vim.api.nvim_buf_get_mark(0, '>')
-          local lines = vim.fn.getregion({ 0, s[1], s[2] + 1, 0 }, { 0, e[1], e[2] + 1, 0 })
-          require('jisho').search(table.concat(lines, ' '))
-        end)
-      end,
-      mode = 'v',
-      desc = 'Jisho (Selection)',
-    },
+    { '<leader>tj', jisho_cword, mode = 'n', desc = 'Jisho (Word under cursor)' },
+    { '<leader>tj', jisho_visual, mode = 'x', desc = 'Jisho (Selection)' },
   },
   opts = {},
 }
@@ -103,58 +83,32 @@ end, { desc = 'Jisho (Selection)' })
 ```lua
 require('resonance').load({
   'https://github.com/Imngzx/jisho.nvim',
-
-  -- optional
-  dependencies = { 'https://github.com/atusy/budoux.lua', },
-
-  cmd = { 'Jisho' },
-
+  dependencies = { 'https://github.com/atusy/budoux.lua' }, -- optional
+  cmd = { 'Jisho', 'JishoHistory', 'JishoDedupe', 'JishoRefresh' },
   keys = {
-    { 'n', '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho (Word under cursor)' } },
-    { 'v', '<leader>tj', function()
-      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', true)
-      vim.schedule(function()
-        local s = vim.api.nvim_buf_get_mark(0, '<')
-        local e = vim.api.nvim_buf_get_mark(0, '>')
-        local lines = vim.fn.getregion({ 0, s[1], s[2] + 1, 0 }, { 0, e[1], e[2] + 1, 0 })
-        require('jisho').search(table.concat(lines, ' '))
-      end)
-    end, { desc = 'Jisho (Selection)' } },
+    { 'n', '<leader>tj', jisho_cword, { desc = 'Jisho (Word under cursor)' } },
+    { 'x', '<leader>tj', jisho_visual, { desc = 'Jisho (Selection)' } },
   },
-
   config = function()
-    require('jisho').setup({
-      use_budoux = true,
-      layout = 'spacious',
-    })
+    require('jisho').setup({ use_budoux = true, layout = 'spacious' })
   end,
 })
 ```
 
 ## ⚙️ Configuration
 
-`jisho.nvim` works perfectly without any configuration, but you can customize the UI behavior.
+`setup()` is optional. Defaults:
 
 ```lua
 require('jisho').setup({
-  -- Auto-detect snacks.nvim by default.
-  -- Set to false to force use native Neovim floating window.
-  -- Set to true to force use snacks.nvim.
-  use_snacks = pcall(require, 'snacks'),
-
-  -- Auto-detect budoux.lua by default.
-  -- can set to true or false
-  use_budoux = pcall(require, 'budoux'),
-  
-  -- Settings for the native floating window (used when snacks is not available)
+  use_snacks = pcall(require, 'snacks'), -- false: native floating window
+  use_budoux = pcall(require, 'budoux'), -- Budoux-aware w/b
+  layout = 'spacious',                   -- compact | spacious | super_spacious
   window = {
-    width = 0.6,      -- 60% of screen width
-    height = 0.7,     -- 70% of screen height
-    border = "rounded", -- "single", "double", "rounded", "solid", "shadow"
+    width = 0.6,        -- ratio of the editor width
+    height = 0.7,       -- ratio of the editor height
+    border = 'rounded', -- single | double | rounded | solid | shadow | none
   },
-
-  -- compact | spacious | super_spacious
-  layout = "spacious"
 })
 ```
 
@@ -176,10 +130,7 @@ You can search any word anywhere via the command line:
 
 ### Keymaps
 
-If you configured the keymaps as shown above:
-
-- **Normal Mode:** Press `<leader>tj` to translate the word directly under your cursor.
-- **Visual Mode:** Select any text and press `<leader>tj` to translate the selection.
+With the keymaps above, `<leader>tj` looks up the word under the cursor (normal mode) or the selection (visual mode).
 
 ### User Commands
 
@@ -204,11 +155,11 @@ If you configured the keymaps as shown above:
 
 ## 🤝 Requirements
 
-- Neovim >= 0.13.0 (uses `vim.async`, `vim.system`, and `vim.net.request`)
-- `curl` available in your system's PATH (fallback HTTP transport)
-- [Budoux plugin](https://github.com/atusy/budoux.lua) *optional - for Japanese word segmentation*
-- [snacks.nvim](https://github.com/folke/snacks.nvim) *recommended for best UI experience*
-- [Markdown rendering plugin](https://github.com/MeanderingProgrammer/render-markdown.nvim) *recommended for best markdown rendering*
+- Neovim >= 0.13 (`vim.async`, `vim.net.request`)
+- `curl` in PATH, only if `vim.net.request` is unavailable
+- Optional: [budoux.lua](https://github.com/atusy/budoux.lua) (word segmentation), [snacks.nvim](https://github.com/folke/snacks.nvim) (UI), [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) (rendering)
+
+Full reference: `:help jisho`.
 
 ## License
 
