@@ -6,8 +6,10 @@ local s = require('jisho.core.search')
 local sfmt = string.format
 local strim = vim.trim
 local slower = string.lower
-local ssub = string.sub
 local sgsub = string.gsub
+local schar = string.char
+local band = bit.band
+local brshift = bit.rshift
 
 local vnotif = vim.notify
 local vlog = vim.log.levels
@@ -19,91 +21,17 @@ local function clear_memo()
   _key_memo = {}
 end
 
+-- Hiragana -> katakana: U+3041..U+3096 and U+309D..U+309E map to +0x60.
+-- Keyed by the 3-byte UTF-8 sequence so one gsub pass converts a word.
+local _h2k = {}
+local function u8(cp)
+  return schar(0xE0 + brshift(cp, 12), 0x80 + band(brshift(cp, 6), 0x3F), 0x80 + band(cp, 0x3F))
+end
+for cp = 0x3041, 0x3096 do _h2k[u8(cp)] = u8(cp + 0x60) end
+for cp = 0x309D, 0x309E do _h2k[u8(cp)] = u8(cp + 0x60) end
+
 local function norm_kana(w)
-  local h2k = {
-    ['あ'] = 'ア',
-    ['い'] = 'イ',
-    ['う'] = 'ウ',
-    ['え'] = 'エ',
-    ['お'] = 'オ',
-    ['か'] = 'カ',
-    ['き'] = 'キ',
-    ['く'] = 'ク',
-    ['け'] = 'ケ',
-    ['こ'] = 'コ',
-    ['さ'] = 'サ',
-    ['し'] = 'シ',
-    ['す'] = 'ス',
-    ['せ'] = 'セ',
-    ['そ'] = 'ソ',
-    ['た'] = 'タ',
-    ['ち'] = 'チ',
-    ['つ'] = 'ツ',
-    ['て'] = 'テ',
-    ['と'] = 'ト',
-    ['な'] = 'ナ',
-    ['に'] = 'ニ',
-    ['ぬ'] = 'ヌ',
-    ['ね'] = 'ネ',
-    ['の'] = 'ノ',
-    ['は'] = 'ハ',
-    ['ひ'] = 'ヒ',
-    ['ふ'] = 'フ',
-    ['へ'] = 'ヘ',
-    ['ほ'] = 'ホ',
-    ['ま'] = 'マ',
-    ['み'] = 'ミ',
-    ['む'] = 'ム',
-    ['め'] = 'メ',
-    ['も'] = 'モ',
-    ['や'] = 'ヤ',
-    ['ゆ'] = 'ユ',
-    ['よ'] = 'ヨ',
-    ['ら'] = 'ラ',
-    ['り'] = 'リ',
-    ['る'] = 'ル',
-    ['れ'] = 'レ',
-    ['ろ'] = 'ロ',
-    ['わ'] = 'ワ',
-    ['を'] = 'ヲ',
-    ['ん'] = 'ン',
-    ['が'] = 'ガ',
-    ['ぎ'] = 'ギ',
-    ['ぐ'] = 'グ',
-    ['げ'] = 'ゲ',
-    ['ご'] = 'ゴ',
-    ['ざ'] = 'ザ',
-    ['じ'] = 'ジ',
-    ['ず'] = 'ズ',
-    ['ぜ'] = 'ゼ',
-    ['ぞ'] = 'ゾ',
-    ['だ'] = 'ダ',
-    ['ぢ'] = 'ヂ',
-    ['づ'] = 'ヅ',
-    ['で'] = 'デ',
-    ['ど'] = 'ド',
-    ['ば'] = 'バ',
-    ['び'] = 'ビ',
-    ['ぶ'] = 'ブ',
-    ['べ'] = 'ベ',
-    ['ぼ'] = 'ボ',
-    ['ぱ'] = 'パ',
-    ['ぴ'] = 'ピ',
-    ['ぷ'] = 'プ',
-    ['ぺ'] = 'ペ',
-    ['ぽ'] = 'ポ',
-    ['ゔ'] = 'ヴ',
-    ['ゃ'] = 'ャ',
-    ['ゅ'] = 'ュ',
-    ['ょ'] = 'ョ',
-    ['っ'] = 'ッ',
-  }
-  local res = ''
-  for i = 1, #w do
-    local ch = ssub(w, i, i)
-    res = res .. (h2k[ch] or ch)
-  end
-  return res
+  return (sgsub(w, '\227[\129\130][\128-\191]', _h2k))
 end
 
 local function get_key(w)
@@ -148,7 +76,9 @@ function M.check_cache_duplicate(w)
 end
 
 function M.clear_cache()
-  c.search_cache = {}
+  -- In place: cache.lua saves its own reference to this table.
+  local sc = c.search_cache
+  for w in pairs(sc) do sc[w] = nil end
   clear_memo()
   c.save_cache()
   vnotif('Search cache cleared', vlog.INFO, { title = 'Jisho Dedupe' })
@@ -174,5 +104,7 @@ function M.refresh(w, cfg)
 end
 
 function M.setup_commands() end
+
+M.get_key = get_key
 
 return M
