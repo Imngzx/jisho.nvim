@@ -40,28 +40,14 @@ Good for Japanese learners, anime enthusiasts, or anyone reading Japanese docume
 
 ## 📦 Installation
 
-Every method below uses the same two keymaps:
-
-```lua
--- Normal mode: word under the cursor
-local function jisho_cword() require('jisho').search() end
-
--- Visual mode: the selection
-local function jisho_visual()
-  local text = vim.fn.getregion(vim.fn.getpos('v'), vim.fn.getpos('.'), { type = vim.fn.mode() })
-  vim.api.nvim_feedkeys(vim.keycode('<Esc>'), 'n', false)
-  require('jisho').search(table.concat(text, ' '))
-end
-```
+One keymap covers both modes: the word under the cursor in Normal mode, the selection in Visual mode.
 
 ### Method 1: Native `vim.pack`
 
 ```lua
 vim.pack.add({ 'https://github.com/Imngzx/jisho.nvim' })
-require('jisho').setup()
 
-vim.keymap.set('n', '<leader>tj', jisho_cword, { desc = 'Jisho (Word under cursor)' })
-vim.keymap.set('x', '<leader>tj', jisho_visual, { desc = 'Jisho (Selection)' })
+vim.keymap.set({ 'n', 'x' }, '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho' })
 ```
 
 ### Method 2: [lazy.nvim](https://github.com/folke/lazy.nvim)
@@ -69,10 +55,9 @@ vim.keymap.set('x', '<leader>tj', jisho_visual, { desc = 'Jisho (Selection)' })
 ```lua
 {
   'Imngzx/jisho.nvim',
-  cmd = { 'Jisho', 'JishoHistory', 'JishoDedupe', 'JishoRefresh' },
+  cmd = { 'Jisho', 'JishoHistory' },
   keys = {
-    { '<leader>tj', jisho_cword, mode = 'n', desc = 'Jisho (Word under cursor)' },
-    { '<leader>tj', jisho_visual, mode = 'x', desc = 'Jisho (Selection)' },
+    { '<leader>tj', function() require('jisho').search() end, mode = { 'n', 'x' }, desc = 'Jisho' },
   },
   opts = {},
 }
@@ -84,26 +69,30 @@ vim.keymap.set('x', '<leader>tj', jisho_visual, { desc = 'Jisho (Selection)' })
 require('resonance').load({
   'https://github.com/Imngzx/jisho.nvim',
   dependencies = { 'https://github.com/atusy/budoux.lua' }, -- optional
-  cmd = { 'Jisho', 'JishoHistory', 'JishoDedupe', 'JishoRefresh' },
+  cmd = { 'Jisho', 'JishoHistory' },
   keys = {
-    { 'n', '<leader>tj', jisho_cword, { desc = 'Jisho (Word under cursor)' } },
-    { 'x', '<leader>tj', jisho_visual, { desc = 'Jisho (Selection)' } },
+    { { 'n', 'x' }, '<leader>tj', function() require('jisho').search() end, { desc = 'Jisho' } },
   },
-  config = function()
-    require('jisho').setup({ use_budoux = true, layout = 'spacious' })
-  end,
 })
 ```
 
 ## ⚙️ Configuration
 
-`setup()` is optional. Defaults:
+Nothing to configure: calling `setup()` is optional. To change something, pass only that key:
+
+```lua
+require('jisho').setup({ layout = 'compact' })
+```
+
+All options and their defaults:
 
 ```lua
 require('jisho').setup({
   use_snacks = pcall(require, 'snacks'), -- false: native floating window
-  use_budoux = pcall(require, 'budoux'), -- Budoux-aware w/b
+  use_budoux = pcall(require, 'budoux'), -- Budoux phrase motions in Japanese text
   layout = 'spacious',                   -- compact | spacious | super_spacious
+  timeout = 10000,                       -- give up on a request after this many ms
+  notify = nil,                          -- status: nil = auto, true = spinner notification, false = progress message
   window = {
     width = 0.6,        -- ratio of the editor width
     height = 0.7,       -- ratio of the editor height
@@ -126,17 +115,20 @@ You can search any word anywhere via the command line:
 ```vim
 :Jisho 食べる
 :Jisho hello
+:'<,'>Jisho       " the last visual selection
 ```
 
 ### Keymaps
 
-With the keymaps above, `<leader>tj` looks up the word under the cursor (normal mode) or the selection (visual mode).
+With the keymap above, `<leader>tj` looks up the word under the cursor (Normal mode) or the selection (Visual mode).
+
+While a search runs, its status shows as an animated spinner notification if you use a notifier plugin (snacks.notifier, noice, nvim-notify). With plain Neovim it is a progress message instead, so `:messages` does not fill up with spinner frames. Force either with `notify = true` / `false`.
 
 ### User Commands
 
 | Command | Description |
 |---------|-------------|
-| `:Jisho [word]` | Search for a word (uses word under cursor if omitted) |
+| `:Jisho [word]` | Search for a word (word under cursor if omitted; `:'<,'>Jisho` for the selection) |
 | `:JishoHistory` | Open search history picker (snacks.picker or native) |
 | `:JishoDedupe inflight` | Inspect in-flight requests |
 | `:JishoDedupe clear-inflight` | Clear all in-flight requests |

@@ -17,6 +17,7 @@ for spec in "${specs[@]}"; do
   # -c is used instead of -l: an error in the spec file must not be
   # swallowed, so a load failure exits through `cquit`.
   XDG_CACHE_HOME="$tmp" timeout 60 nvim --headless -u NONE -i NONE --cmd 'set rtp^=.' \
+    -c 'runtime plugin/jisho.lua' \
     -c "lua local ok, err = pcall(dofile, '$spec'); if not ok then io.stdout:write('  LOAD FAIL ', tostring(err), '\n'); vim.cmd('cquit! 1') end" \
     </dev/null || fail=1
   rm -rf "$tmp"

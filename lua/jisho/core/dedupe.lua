@@ -103,8 +103,6 @@ function M.refresh(w, cfg)
   s.search(w, cfg)
 end
 
-function M.setup_commands() end
-
 M.get_key = get_key
 
 return M

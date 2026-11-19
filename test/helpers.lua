@@ -4,8 +4,26 @@ local h = {}
 
 local results = { pass = 0, fail = 0 }
 
--- Record notifications instead of printing them.
+-- Record jisho's progress messages: { status, text } per update.
+h.progress = {}
+vim.api.nvim_create_autocmd('Progress', {
+  pattern = 'jisho',
+  callback = function(ev)
+    h.progress[#h.progress + 1] = { status = ev.data.status, text = table.concat(ev.data.text) }
+  end,
+})
+
+--- The last progress update with `status`, or nil.
+function h.last_progress(status)
+  for i = #h.progress, 1, -1 do
+    if h.progress[i].status == status then return h.progress[i].text end
+  end
+end
+
+-- Record notifications instead of printing them. The built-in is kept in
+-- h.builtin_notify (jisho treats a replaced vim.notify as a notifier plugin).
 h.notes = {}
+h.builtin_notify = vim.notify
 vim.notify = function(msg, level, _) h.notes[#h.notes + 1] = { msg = msg, level = level } end
 
 h.FIXTURE = vim.json.encode({
@@ -46,17 +64,22 @@ end
 
 --- Hide vim.net and fake `curl` through vim.system instead. It must be
 --- `false`, not nil: the `vim` metatable reloads a nil `vim.net` on access.
+--- Set `sys.hang = true` for a curl that never exits; `sys.killed` records
+--- the signal it was killed with.
 ---@param opts? { code?: integer, body?: string }
 function h.stub_curl(opts)
   opts = opts or {}
-  local sys = { calls = {} }
+  local sys = { calls = {}, hang = false }
   vim.net = false
   vim.system = function(cmd, _, cb)
     sys.calls[#sys.calls + 1] = cmd
+    if sys.hang then
+      return { kill = function(_, sig) sys.killed = sig end }
+    end
     vim.defer_fn(function()
       cb({ code = opts.code or 0, stdout = opts.body or h.FIXTURE, stderr = '' })
     end, 10)
-    return {}
+    return { kill = function() end }
   end
   return sys
 end

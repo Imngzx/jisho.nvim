@@ -7,8 +7,11 @@ is the final authority.
 ## Layers
 
 ```text
-init.lua (public API, :Jisho* commands, M.config)
-   │ setup() / search() / history()
+plugin/jisho.lua ── :Jisho, :JishoHistory, :JishoRefresh, :JishoDedupe
+   │ (defined at startup; each requires `jisho` only when it runs)
+   ▼
+init.lua (public API, M.config) ── setup() optional: first use runs it
+   │ search() / refresh() / history(), _cmd_* handlers
    ▼
 core/init.lua ── re-exports
    │
@@ -19,51 +22,73 @@ core/init.lua ── re-exports
    │                                                     ▼
    ├── history.lua ── :JishoHistory                   ui.lua ── result window
    ├── dedupe.lua  ── :JishoDedupe, :JishoRefresh       (snacks.win | native float,
-   │                                                     j/k nav, Budoux w/b)
+   │                                                     j/k nav, Budoux motions)
    ▼
-cache.lua ── shared state: search_cache, in_flight, hist, spinner,
+cache.lua ── shared state: search_cache, in_flight, hist, progress message,
              urlencode, load_cache/save_cache (stdpath('cache')/jisho_cache.json)
 ```
 
+- Startup cost is `plugin/jisho.lua` alone (four command definitions).
 - `cache.lua` requires nothing from the plugin; everything else reads its
-  state through the module table.
+  state through the module table. `cache.setup()` reads the disk cache
+  only once, however often `jisho.setup()` runs.
 - `ui.lua` is required lazily, when a result is ready to show.
 - `vim.async` functions are looked up on first use (`ensure_async()` in
-  `search.lua` and `cache.lua`), not at require time.
+  `search.lua`), not at require time.
 
 ## Flow 1: `search(word)`
 
+0. `init.lua`: no `word` in Visual mode → the selection (`getregion()`),
+   then leave Visual mode. `:Jisho` with a range does the same for `'<,'>`,
+   or joins the lines of any other range.
 1. Empty `word` → `<cword>`. Trim and collapse whitespace; still empty →
    warn and return.
 2. **Cache hit:** `search_cache[word]` younger than `CACHE_TTL` (300 s) →
-   schedule the window open, bump history, return. No request.
+   schedule the window open, report success, bump history, return.
 3. **Dedupe:** if `in_flight[word]` exists, append this caller's callback
    to it and return.
-4. Otherwise create `entry = { callbacks = { cb } }`, store it, start the
-   spinner (returns an epoch), and `vim.async.run` the request.
-5. `request(word)` awaits one transport through an explicit adapter:
+4. Otherwise create `entry = { callbacks = { cb } }`, store it, open the
+   progress message (returns an epoch), and `vim.async.run` the request.
+5. `request(word, timeout)` awaits one transport through an explicit adapter:
    - `vim.net.request(url .. '?keyword=' .. urlencode(word), { retry = 3 })`
-   - fallback: `vim.system({ 'curl', '-s', '-G', '--data-urlencode', ... })`
+   - fallback: `vim.system({ 'curl', '-s', '-G', '--max-time', ..., })`
 
    The callback schedules `done(err, body)` and the adapter returns nothing,
-   so `vim.async` has no handle to close (closing it would kill the request).
+   so `vim.async` has no handle to close (closing it would kill the
+   request). The adapter keeps the handle itself for the timeout: a
+   `vim.defer_fn` timer kills the request (`close()` / `kill(15)`) and
+   finishes with "Timed out after N s". A `fin` flag lets the first outcome
+   win, so the late callback of a killed request is ignored.
 6. The task clears `in_flight[word]` if it is still `entry`, then
    `proc_resp()`: decode JSON, `build_lines()` for at most 5 results with
    spacers and `---` between them, store in the cache, add to history,
-   save to disk, run every queued callback (scheduled), stop the spinner.
+   save to disk, run every queued callback (scheduled), close the progress
+   message.
 7. `task:on_complete(err)` covers an unexpected exception: clear the entry
-   (same identity check) and stop the spinner with the error.
+   (same identity check) and close the progress message with the error.
 
 `require('jisho').search()` is fire-and-forget; no task is exposed.
 
-## Flow 2: the spinner
+## Flow 2: search status
 
-`start_spin(word)` bumps `spin_epoch` and runs a task that calls
-`vim.notify` with the next Braille frame (same notification `id`, so it
-replaces itself) and `vim.async.sleep(80)` while its epoch is current.
-`stop_spin(ok, word, err, epoch)` bumps the epoch only if it matches, then
-schedules the success/failure notification. An older search can therefore
-never stop a newer search's spinner.
+`use_notify()` picks the style per search: the `notify` option if set,
+else "is `vim.notify` replaced?" (its source is not `vim/_core/editor`, so
+a notifier plugin installed it). `vim.notify` is looked up on every call,
+never localized, because notifier plugins replace it lazily.
+
+- **Spinner** (notifier): `start_spin(word)` runs an async task that sends
+  the next Braille frame with id `jisho_req` and `vim.async.sleep(80)`
+  while its epoch is current; the final "✓ Query successful" / "✗ Search
+  failed" reuses the id, so it replaces the spinner.
+- **Progress message** (built-in notify, which ignores `id`): one
+  `nvim_echo` with `kind = 'progress'`, id `jisho.search`, status `running`,
+  not added to history; closed with `success`, or `failed` (added to
+  history). Scheduled (callers may be in a fast event) and `pcall`ed.
+
+Both: `start_spin` returns an epoch and only the search holding the current
+epoch closes the status, so an older search finishing late cannot overwrite
+a newer one; its failure, if any, is still reported separately. A cache hit
+reports once (`report_cached`).
 
 ## Flow 3: the result window
 

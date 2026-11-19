@@ -10,6 +10,8 @@ local vnet_req = vim.net and vim.net.request
 local vsys = vim.system
 local otime = os.time
 local math_min = math.min
+local mceil = math.ceil
+local vdefer = vim.defer_fn
 local sgsub = string.gsub
 local strim = vim.trim
 local vexpand = vim.fn.expand
@@ -38,24 +40,45 @@ local function call_cbs(cbs, lines, title, w, err)
   end
 end
 
-local function request(w)
+-- Both adapters schedule `done` (the callbacks arrive in a fast event) and
+-- return no handle: vim.async would close it. The handle is kept locally so
+-- the timeout can kill the request; `fin` makes the first outcome win.
+local function request(w, timeout)
   local url = 'https://jisho.org/api/v1/search/words'
-  if vnet_req then
-    return vasync_await(function(done)
-      vnet_req(url .. '?keyword=' .. c.urlencode(w), { retry = 3, verbose = false },
-        function(err, res)
-          vsched(function() done(err, res and res.body) end)
-        end)
-    end)
-  end
   return vasync_await(function(done)
-    vsys({ 'curl', '-s', '-G', '--data-urlencode', 'keyword=' .. w, url }, { text = true },
+    local fin = false
+    local handle, timer
+    local function finish(err, body)
+      if fin then return end
+      fin = true
+      if timer and not timer:is_closing() then
+        timer:stop()
+        timer:close()
+      end
+      done(err, body)
+    end
+    timer = vdefer(function()
+      if fin then return end
+      if handle then
+        if handle.kill then pcall(handle.kill, handle, 15) else pcall(handle.close, handle) end
+      end
+      finish('Timed out after ' .. timeout / 1000 .. ' s', nil)
+    end, timeout)
+    if vnet_req then
+      handle = vnet_req(url .. '?keyword=' .. c.urlencode(w), { retry = 3, verbose = false },
+        function(err, res)
+          vsched(function() finish(err, res and res.body) end)
+        end)
+      return
+    end
+    handle = vsys({ 'curl', '-s', '-G', '--max-time', tostring(mceil(timeout / 1000)),
+      '--data-urlencode', 'keyword=' .. w, url }, { text = true },
       function(obj)
         vsched(function()
           if obj.code ~= 0 or not obj.stdout then
-            done('cURL Code: ' .. tostring(obj.code), nil)
+            finish('cURL Code: ' .. tostring(obj.code), nil)
           else
-            done(nil, obj.stdout)
+            finish(nil, obj.stdout)
           end
         end)
       end)
@@ -112,9 +135,8 @@ function M.search(w, cfg)
   local cached = c.search_cache[w]
   local now = otime()
   if cached and (now - cached.timestamp) < c.CACHE_TTL then
+    c.report_cached(w)
     vsched(function()
-      vnotif('✓ Query successful (cached): ' .. w, vlog.INFO,
-        { title = 'Jisho.org', id = 'jisho_req', timeout = 10 })
       require('jisho.ui').open_window(cached.lines, cached.title, cfg)
     end)
     c.add_hist(w, now)
@@ -131,7 +153,7 @@ function M.search(w, cfg)
   c.in_flight[w] = entry
   local spin_id = c.start_spin(w)
   entry.task = vasync_run(function()
-    local ok, err, js = pcall(request, w)
+    local ok, err, js = pcall(request, w, cfg.timeout or 10000)
     if c.in_flight[w] == entry then
       c.in_flight[w] = nil
     end

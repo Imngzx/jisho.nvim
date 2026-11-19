@@ -7,6 +7,7 @@ CONTENTS                                                    *jisho-contents*
 2. Installation                          |jisho-installation|
 3. Setup                                 |jisho-setup|
 4. Usage                                 |jisho-usage|
+   4.1 Progress                          |jisho-progress|
 5. Result Window                         |jisho-result-window|
 6. History                               |jisho-history|
 7. Cache and Deduplication               |jisho-cache|
@@ -25,7 +26,7 @@ Requires Neovim 0.13+ (|vim.async|, |vim.net.request|). `curl` is used when
 
 Optional:
 - snacks.nvim       window and history picker
-- budoux.lua        Japanese word segmentation for `w` / `b`
+- budoux.lua        Japanese phrase motions (|jisho-budoux|)
 - render-markdown.nvim  nicer Markdown rendering
 
 ==============================================================================
@@ -33,19 +34,29 @@ Optional:
 
 >lua
     vim.pack.add({ 'https://github.com/Imngzx/jisho.nvim' })
-    require('jisho').setup()
+    vim.keymap.set({ 'n', 'x' }, '<leader>tj', function()
+      require('jisho').search()
+    end, { desc = 'Jisho' })
 <
-See the README for lazy.nvim and resonance.nvim specs.
+That is all: the commands exist right away, and nothing is loaded until the
+first lookup. See the README for lazy.nvim and resonance.nvim specs.
 
 ==============================================================================
 3. Setup                                                       *jisho-setup*
 
-`setup()` is optional; these are the defaults:
+`setup()` is optional. The first lookup, command or history call uses the
+defaults; call it only to change something, with only the keys you change:
+>lua
+    require('jisho').setup({ layout = 'compact' })
+<
+All options and their defaults:
 >lua
     require('jisho').setup({
       use_snacks = pcall(require, 'snacks'),  -- false: native float
-      use_budoux = pcall(require, 'budoux'),  -- Budoux `w` / `b`
+      use_budoux = pcall(require, 'budoux'),  -- Budoux phrase motions
       layout = 'spacious',  -- 'compact' | 'spacious' | 'super_spacious'
+      timeout = 10000,      -- give up on a request after this many ms
+      notify = nil,         -- status style, see |jisho-progress|
       window = {
         width = 0.6,         -- ratio of the editor width
         height = 0.7,        -- ratio of the editor height
@@ -53,13 +64,13 @@ See the README for lazy.nvim and resonance.nvim specs.
       },
     })
 <
-`setup()` also loads the disk cache and history.
-
 ==============================================================================
 4. Usage                                                       *jisho-usage*
 
 Commands:                                                  *:Jisho*
     :Jisho [word]           Look up {word}, or the word under the cursor.
+    :'<,'>Jisho             Look up the last selection.
+    :{range}Jisho           Look up the text of those lines.
                                                            *:JishoHistory*
     :JishoHistory           Open the search history.
                                                            *:JishoRefresh*
@@ -73,22 +84,31 @@ Commands:                                                  *:Jisho*
 
 Lua API:                                                       *jisho-api*
 >lua
-    require('jisho').search(word)  -- nil/'' = word under the cursor
+    require('jisho').search(word)   -- no word: selection in Visual mode,
+                                    -- else the word under the cursor
+    require('jisho').refresh(word)  -- bypass the cache
     require('jisho').history()
 <
-Example keymaps:
->lua
-    vim.keymap.set('n', '<leader>tj', function()
-      require('jisho').search()
-    end, { desc = 'Jisho (word under cursor)' })
+Because `search()` reads the selection itself, one mapping serves Normal and
+Visual mode (see |jisho-installation|).
 
-    vim.keymap.set('x', '<leader>tj', function()
-      local text = vim.fn.getregion(vim.fn.getpos('v'), vim.fn.getpos('.'),
-        { type = vim.fn.mode() })
-      vim.api.nvim_feedkeys(vim.keycode('<Esc>'), 'n', false)
-      require('jisho').search(table.concat(text, ' '))
-    end, { desc = 'Jisho (selection)' })
-<
+                                                            *jisho-progress*
+While a search runs, its status is shown one of two ways (`notify` option):
+
+`nil` (default)   A spinner notification if a notifier plugin replaced
+                  |vim.notify| (snacks.notifier, noice, nvim-notify), else a
+                  progress message.
+`true`            Spinner notification ("⠋ Searching: 食べる", then
+                  "✓ Query successful"), replaced in place via its id.
+`false`           One |progress-message| ("Searching: 食べる", then ✓ or ✗),
+                  not added to |:messages| unless it fails. Statusline
+                  plugins can follow it through the |Progress| event with
+                  pattern `jisho`.
+
+The built-in |vim.notify| cannot replace a message, so a spinner there would
+add a line to |:messages| for every frame; that is why plain Neovim gets the
+progress message.
+
 ==============================================================================
 5. Result Window                                       *jisho-result-window*
 
@@ -150,6 +170,8 @@ An unknown name falls back to `spacious`.
 
 Nothing happens       Check |:messages|, your connection, and that `curl`
                       is in PATH if |vim.net.request| is missing.
+"Timed out"           Jisho.org did not answer within `timeout`; raise it
+                      in |jisho-setup| on a slow connection.
 `w` / `e` are plain   budoux.lua not installed or `use_budoux = false`.
 Stale result          |:JishoRefresh| {word}.
 

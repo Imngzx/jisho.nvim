@@ -14,14 +14,10 @@ vim.net = {
 }
 
 local jisho = require('jisho')
-jisho.setup({ use_snacks = false, use_budoux = false })
+jisho.setup({ use_snacks = false, use_budoux = false, notify = false })
 local c = require('jisho.core.cache')
 
-local function last_error()
-  for i = #h.notes, 1, -1 do
-    if h.notes[i].level == vim.log.levels.ERROR then return h.notes[i].msg end
-  end
-end
+local function last_error() return h.last_progress('failed') end
 
 h.test('a transport error reports and caches nothing', function()
   mode.err = 'timeout'
@@ -34,7 +30,7 @@ h.test('a transport error reports and caches nothing', function()
 end)
 
 h.test('no results reports "Word not found"', function()
-  h.notes = {}
+  h.progress = {}
   mode.err, mode.body = nil, vim.json.encode({ data = {} })
   jisho.search('zzzz')
   vim.wait(500, function() return last_error() ~= nil end)

@@ -11,9 +11,10 @@
 
 | Path | Role |
 |---|---|
-| `lua/jisho/init.lua` | Public API: `setup()`, `search()`, `history()`; defines the `:Jisho*` user commands at require time |
+| `plugin/jisho.lua` | The `:Jisho*` user commands, defined at startup; each requires `jisho` only when run |
+| `lua/jisho/init.lua` | Public API: `setup()` (optional), `search()`, `refresh()`, `history()`, command handlers |
 | `lua/jisho/core/init.lua` | Re-exports `setup`, `search`, `history`, `build_lines` |
-| `lua/jisho/core/cache.lua` | All shared state: result cache, history, in-flight table, spinner, URL encoding, disk persistence |
+| `lua/jisho/core/cache.lua` | All shared state: result cache, history, in-flight table, progress message, URL encoding, disk persistence |
 | `lua/jisho/core/search.lua` | Search flow: normalize word, cache hit, dedupe, async HTTP, process response |
 | `lua/jisho/core/response.lua` | `build_lines(item, cfg)`: one Jisho API entry → Markdown lines |
 | `lua/jisho/core/history.lua` | `:JishoHistory` (snacks.picker, native float fallback) |
@@ -43,22 +44,29 @@ a fix lives in code comments. Keep any working plan in an untracked file
    and never use positional `await(argc, fn, ...)` with `vim.net.request` or
    `vim.system`. `vim.async` closes a returned handle on completion, which
    kills the request; positional await assumes a success-only callback and
-   mangles their error-first results. Adapt explicitly (see `request()` in
-   `core/search.lua`).
+   mangles their error-first results. Adapt explicitly and keep the handle
+   in a local for the timeout (see `request()` in `core/search.lua`); the
+   first outcome wins, a killed request's late callback is ignored.
 3. **Cache lookup and `in_flight[word]` dedupe happen before `vim.async.run`.**
    An entry is `{ callbacks, task }`; completion clears it only if
-   `in_flight[word]` is still that same entry.
-4. **Only the matching search stops the spinner.** `start_spin()` returns an
-   epoch; `stop_spin(..., epoch)` advances it only if it is still current.
-   No `uv.new_timer` — the spinner is an async task using `vim.async.sleep(80)`.
+   `in_flight[word]` is still that same entry. Every request has a timeout,
+   so an entry can never stay forever.
+4. **Never animate through the built-in `vim.notify`.** It ignores `id`, so
+   every spinner frame becomes a `:messages` line. `use_notify()` decides:
+   spinner notification (id `jisho_req`) only when a notifier plugin
+   replaced `vim.notify`, else one progress message (`nvim_echo`,
+   `kind = 'progress'`, id `jisho.search`). Look `vim.notify` up at call
+   time; never localize it in the status code. Always close the status, and
+   only from the search holding the current epoch.
 5. **Keep both transports.** Native `vim.net.request` (retry = 3) and the
    `curl` fallback stay until the supported Neovim range changes.
 6. **Shared state lives in `core/cache.lua`.** Other modules read it through
    the module table (`c.search_cache`, `c.in_flight`, `c.hist`); `cache.lua`
    itself uses upvalues, so reassigning a field from outside (`c.x = {}`)
    desyncs the two. Clear tables in place instead.
-7. **Requiring `jisho` must stay cheap.** `vim.async` is resolved lazily
-   (`ensure_async()`); do not pull heavy modules into `init.lua` at load.
+7. **Startup stays at `plugin/jisho.lua`.** It only defines commands; it
+   must not require `jisho`. `setup()` is optional: every public entry point
+   calls `ensure_setup()`, and `cache.setup()` reads the disk cache once.
 
 ---
 
@@ -88,10 +96,12 @@ test/run.sh test/search_spec.lua   # one or more specs
 ```
 
 Each spec runs in its own `nvim -u NONE` with the working tree on the
-runtimepath and a throwaway `XDG_CACHE_HOME`, so the real
+runtimepath, `plugin/jisho.lua` sourced (`-u NONE` skips plugin files) and a throwaway `XDG_CACHE_HOME`, so the real
 `~/.cache/nvim/jisho_cache.json` is never touched. `test/helpers.lua` stubs
 the network: `h.stub_net()` replaces `vim.net.request`, `h.stub_curl()`
-hides it and fakes `vim.system`. Install stubs **before** requiring
+hides it and fakes `vim.system`. The helpers also replace `vim.notify`
+with a recorder (`h.notes`), which auto mode takes for a notifier plugin:
+specs that check the progress message pass `notify = false`. Install stubs **before** requiring
 `jisho` (the modules copy these functions into locals at load). Hide
 `vim.net` with `false`, never `nil`: the `vim` metatable reloads a nil
 `vim.net` on the next access.
@@ -100,9 +110,14 @@ hides it and fakes `vim.system`. Install stubs **before** requiring
 |---|---|
 | `search_spec` | rendering, cache hit, in-flight dedupe, disk persistence, history |
 | `errors_spec` | transport error, no results, retry after failure |
-| `curl_spec` | `curl` fallback |
+| `curl_spec` | `curl` fallback, `--max-time`, kill on timeout |
 | `dedupe_spec` | kana-normalized key, `clear-cache`, `:JishoRefresh` |
 | `budoux_spec` | `w`/`b`/`e`/`ge`: phrase stops, parity with built-in motions on non-Japanese text, counts, operator/visual, cache freed (skips without budoux.lua) |
+| `progress_spec` | progress message: no `:messages` spam, final status, older search can't close a newer one |
+| `notify_spec` | auto-detection, spinner frames + final notification with a notifier, `notify = false` |
+| `timeout_spec` | hung request killed, entry cleared, word searchable again |
+| `visual_spec` | one `{ 'n', 'x' }` mapping, `:'<,'>Jisho`, `:{range}Jisho` |
+| `plugin_spec` | commands before `require`, everything works without `setup()` |
 | `docs_spec` | help links resolve, `doc/tags` is current |
 
 **Mutation-check new regression tests:** revert the fix, confirm the test
@@ -111,7 +126,7 @@ fails, restore the fix.
 A live check against Jisho.org (network):
 
 ```bash
-X=$(mktemp -d); XDG_CACHE_HOME=$X nvim --headless -u NONE --cmd 'set rtp^=.' \
+X=$(mktemp -d); XDG_CACHE_HOME=$X nvim --headless -u NONE --cmd 'set rtp^=.' -c 'runtime plugin/jisho.lua' \
   -c "lua require('jisho').setup({use_snacks=false}); require('jisho').search('食べる'); vim.wait(15000, function() return #vim.api.nvim_list_wins() > 1 end); print(#vim.api.nvim_list_wins())" \
   -c qall; rm -rf "$X"   # prints 2 when the window opened
 ```
@@ -150,8 +165,12 @@ navigation targets lines matching `^## ` and `^- **N.**` (`setup_nav()` in
 snacks path and the native path.
 
 **Add a `setup()` option** — default in `M.config` and a `---@field` on
-`JishoConfig` in `init.lua`; document it in the README setup example and the
-`*jisho-setup*` section of `doc/jisho.txt`.
+`JishoConfig` in `init.lua`; document it in the README "All options" block and
+the `*jisho-setup*` section of `doc/jisho.txt`. Every option needs a working
+default: users are told `setup()` is optional.
+
+**Add a command** — `plugin/jisho.lua`, with a callback that requires
+`jisho` inside it; put the logic in `init.lua` (a `_cmd_*` handler).
 
 **Edit the help file** — after adding or renaming a `*tag*` in
 `doc/jisho.txt`, regenerate `doc/tags` and commit it with the doc:
